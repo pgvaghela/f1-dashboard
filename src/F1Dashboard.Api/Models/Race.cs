@@ -7,4 +7,6 @@ public class Race
     public int CircuitId {get; set;}
     public string Name {get; set;} = string.Empty;
     public DateOnly Date {get; set;}
+    public Circuit Circuit { get; set; } = null!;
+
 }

@@ -1,0 +1,32 @@
+<div class="drivers-container">
+    <h2>F1 Drivers</h2>
+  
+    @if (loading) {
+      <p>Loading drivers...</p>
+    }
+  
+    @if (error) {
+      <p class="error">{{ error }}</p>
+    }
+  
+    @if (!loading && !error) {
+      <table>
+        <thead>
+          <tr>
+            <th>Code</th>
+            <th>Name</th>
+            <th>Nationality</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (driver of drivers; track driver.id) {
+            <tr>
+              <td>{{ driver.code }}</td>
+              <td>{{ driver.firstName }} {{ driver.lastName }}</td>
+              <td>{{ driver.nationality }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    }
+  </div>

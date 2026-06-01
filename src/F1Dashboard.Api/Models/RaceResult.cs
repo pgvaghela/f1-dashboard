@@ -13,4 +13,7 @@ public class RaceResult
     public decimal? FastestLapTime {get; set;}
     public decimal? GapToWinnerSeconds {get; set;}
     public string Status {get; set;} = string.Empty;
+    public Race Race { get; set; } = null!;
+    public Driver Driver { get; set; } = null!;
+    public Constructor Constructor { get; set; } = null!;
 }

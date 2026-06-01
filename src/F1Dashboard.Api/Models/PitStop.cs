@@ -9,5 +9,7 @@ public class PitStop
     public decimal DurationSeconds {get; set;}
     public string TireIn {get; set;} = string.Empty;
     public string TireOut {get; set;} = string.Empty;
+    public Race Race { get; set; } = null!;
+    public Driver Driver { get; set; } = null!;
 
 }

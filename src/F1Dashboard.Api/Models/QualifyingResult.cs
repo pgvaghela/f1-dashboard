@@ -9,4 +9,7 @@ public class QualifyingResult
     public decimal? Q2Time {get; set;}
     public decimal? Q3Time {get; set;}
     public int? Position {get; set;}
+    public Race Race { get; set; } = null!;
+    public Driver Driver { get; set; } = null!;
+    public Constructor Constructor { get; set; } = null!;
 }
