@@ -1,0 +1,69 @@
+<div class="page">
+  <h1 class="page__title">Standings</h1>
+  <p class="page__subtitle">Championship points by season.</p>
+
+  <div class="controls">
+    <div class="toggle" role="group" aria-label="Standings type">
+      <button
+        type="button"
+        class="toggle__btn"
+        [class.toggle__btn--active]="type === 'drivers'"
+        [attr.aria-pressed]="type === 'drivers'"
+        (click)="setType('drivers')"
+      >
+        Drivers
+      </button>
+      <button
+        type="button"
+        class="toggle__btn"
+        [class.toggle__btn--active]="type === 'constructors'"
+        [attr.aria-pressed]="type === 'constructors'"
+        (click)="setType('constructors')"
+      >
+        Constructors
+      </button>
+    </div>
+
+    <label class="season">
+      <span class="season__label">Season</span>
+      <select
+        class="season__select"
+        [value]="selectedSeason"
+        (change)="onSeasonChange($any($event.target).value)"
+      >
+        @for (season of seasons; track season) {
+          <option [value]="season">{{ season }}</option>
+        }
+      </select>
+    </label>
+  </div>
+
+  @if (loading) {
+    <p class="state">Loading standings…</p>
+  }
+
+  @if (error) {
+    <p class="state state--error">{{ error }}</p>
+  }
+
+  @if (!loading && !error) {
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th class="num">Pos</th>
+          <th>{{ type === 'drivers' ? 'Driver' : 'Constructor' }}</th>
+          <th class="num">Points</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (row of rows; track row.position) {
+          <tr>
+            <td class="num">{{ row.position }}</td>
+            <td>{{ row.name }}</td>
+            <td class="num">{{ row.totalPoints }}</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  }
+</div>
