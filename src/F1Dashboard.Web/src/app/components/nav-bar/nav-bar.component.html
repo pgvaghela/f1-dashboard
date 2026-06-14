@@ -1,0 +1,21 @@
+<header
+  class="nav"
+  [class.nav--transparent]="isHome && !scrolled"
+  [class.nav--solid]="!isHome || scrolled"
+>
+  <nav class="nav__inner container" aria-label="Primary">
+    <a class="nav__brand" routerLink="/">F1 Dashboard</a>
+
+    <ul class="nav__links">
+      <li>
+        <a routerLink="/drivers" routerLinkActive="nav__link--active">Drivers</a>
+      </li>
+      <li>
+        <a routerLink="/constructors" routerLinkActive="nav__link--active">Constructors</a>
+      </li>
+      <li>
+        <a routerLink="/standings" routerLinkActive="nav__link--active">Standings</a>
+      </li>
+    </ul>
+  </nav>
+</header>
