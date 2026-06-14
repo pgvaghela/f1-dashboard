@@ -1,0 +1,31 @@
+<div class="page">
+  <h1 class="page__title">Constructors</h1>
+  <p class="page__subtitle">Teams competing across the championship.</p>
+
+  @if (loading) {
+    <p class="state">Loading constructors…</p>
+  }
+
+  @if (error) {
+    <p class="state state--error">{{ error }}</p>
+  }
+
+  @if (!loading && !error) {
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Team</th>
+          <th>Nationality</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (constructor of constructors; track constructor.id) {
+          <tr>
+            <td>{{ constructor.teamName }}</td>
+            <td>{{ constructor.nationality }}</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  }
+</div>
