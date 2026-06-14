@@ -1,0 +1,65 @@
+<!--
+  Hero visual: currently a CSS-only animated gradient (the documented fallback,
+  used because the Higgsfield MCP was not available in this environment).
+  To swap in a real Higgsfield asset later, drop the file into public/hero/ and
+  replace the `.hero__media` div with a <video poster=...> / <img> as described
+  in the task brief. The gradient animation is disabled under reduced-motion.
+-->
+<section class="hero">
+  <div class="hero__media" aria-hidden="true"></div>
+  <div class="hero__overlay" aria-hidden="true"></div>
+
+  <div class="hero__content container">
+    <h1 class="hero__title">F1 Dashboard</h1>
+    <p class="hero__tagline">
+      Drivers, constructors, and championship standings — every season, one place.
+    </p>
+    <a class="btn btn--primary" routerLink="/drivers">Explore drivers</a>
+  </div>
+</section>
+
+<section class="section section--secondary">
+  <div class="container section__grid reveal">
+    <div>
+      <h2 class="section__title">Real F1 data</h2>
+      <p class="section__body">
+        Championship standings computed straight from race results — points
+        aggregated per driver and per constructor, ranked by season.
+      </p>
+      <a class="link-arrow" routerLink="/standings">View standings &rsaquo;</a>
+    </div>
+    <div class="section__preview" aria-hidden="true">
+      <div class="preview-table">
+        <div class="preview-row preview-row--head">
+          <span>Pos</span><span>Driver</span><span>Pts</span>
+        </div>
+        <div class="preview-row"><span>1</span><span>Verstappen</span><span>125</span></div>
+        <div class="preview-row"><span>2</span><span>Norris</span><span>98</span></div>
+        <div class="preview-row"><span>3</span><span>Leclerc</span><span>91</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container section__center reveal">
+    <h2 class="section__title">Built end-to-end</h2>
+    <p class="section__body section__body--wide">
+      An ASP.NET Core 9 Web API over PostgreSQL with Entity Framework Core,
+      fronted by a standalone-component Angular 19 app. Typed DTOs, async data
+      access, and a clean REST surface throughout.
+    </p>
+  </div>
+</section>
+
+<section class="section section--secondary">
+  <div class="container section__center reveal">
+    <h2 class="section__title">Try it</h2>
+    <p class="section__body">Jump straight into the data.</p>
+    <div class="section__links">
+      <a class="btn btn--ghost" routerLink="/drivers">Drivers</a>
+      <a class="btn btn--ghost" routerLink="/constructors">Constructors</a>
+      <a class="btn btn--ghost" routerLink="/standings">Standings</a>
+    </div>
+  </div>
+</section>
