@@ -20,7 +20,7 @@ export class StandingsComponent implements OnInit {
   private standingsService = inject(StandingsService);
   private route = inject(ActivatedRoute);
 
-  readonly seasons = [2024, 2023];
+  readonly seasons = [2026, 2025, 2024, 2023];
   selectedSeason = this.seasons[0];
   type: StandingType = 'drivers';
 
