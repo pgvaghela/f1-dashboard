@@ -50,4 +50,37 @@ public class StandingsController : ControllerBase
 
         return Ok(standings);
     }
+
+    [HttpGet("constructors/{season}")]
+    public async Task<ActionResult<IEnumerable<ConstructorStandingDto>>> GetConstructorStandings(int season)
+    {
+        var standings = await _context.RaceResults
+            .Where(rr => rr.Race.Season == season)
+            .GroupBy(rr => new
+            {
+                rr.ConstructorId,
+                rr.Constructor.TeamName
+            })
+            .Select(g => new ConstructorStandingDto
+            {
+                ConstructorId = g.Key.ConstructorId,
+                TeamName = g.Key.TeamName,
+                TotalPoints = g.Sum(rr => rr.Points)
+            })
+            .OrderByDescending(s => s.TotalPoints)
+            .ToListAsync();
+
+        if (standings.Count == 0)
+        {
+            return NotFound($"No race results found for season {season}");
+        }
+
+        // Assign positions after sorting
+        for (int i = 0; i < standings.Count; i++)
+        {
+            standings[i].Position = i + 1;
+        }
+
+        return Ok(standings);
+    }
 }
