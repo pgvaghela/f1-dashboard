@@ -9,21 +9,31 @@
   overflow: hidden;
 }
 
-/* Scroll-scrub hero: a tall wrapper provides the scroll distance; the inner
-   pins to the viewport while scroll progress scrubs the video forward. */
-.hero-scroll {
-  position: relative;
-  height: 300vh;
+/* Scroll-scrub hero: the video is a fixed full-viewport background; the page
+   content scrolls normally over it while JS scrubs the video with scroll. */
+.hero-bg {
+  position: fixed;
+  inset: 0;
+  height: 100vh;
+  width: 100%;
+  z-index: 0;
+  overflow: hidden;
 }
 
-.hero-sticky {
-  position: sticky;
-  top: 0;
-  height: 100vh;
-  min-height: 600px;
+/* Transparent intro lets the fixed video show through behind the hero text.
+   Extra height past the first screen gives the car room to finish driving
+   before the opaque content sections scroll up and cover the video. */
+.hero-intro {
+  position: relative;
+  z-index: 1;
+  min-height: 150vh;
+}
+
+.hero-intro .hero__content {
+  min-height: 100vh;
   display: flex;
-  align-items: center;
-  overflow: hidden;
+  flex-direction: column;
+  justify-content: center;
 }
 
 /* Scroll affordance under the CTA, fades out as the user starts scrolling. */
@@ -120,6 +130,8 @@
 
 /* ---------- Sections ---------- */
 .section {
+  position: relative;
+  z-index: 1;
   padding: var(--space-7) 0;
   background-color: var(--color-bg);
 }

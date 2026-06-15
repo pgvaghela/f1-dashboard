@@ -1,9 +1,9 @@
 <!--
   Hero visual: a Higgsfield-generated cinematic clip (public/hero/hero.mp4).
-  Under prefers-reduced-motion the video is not rendered at all — a static poster
-  fills a normal-height hero. Otherwise the hero is a tall "scroll-scrub" region:
-  the sticky inner pins to the viewport while the wrapper scrolls, and scroll
-  progress drives the video's currentTime, so the car drives forward as you scroll.
+  Under prefers-reduced-motion the video is not rendered — a static poster fills a
+  normal-height hero. Otherwise the video is a fixed full-viewport background; the
+  page content scrolls normally over it while scroll progress drives the video's
+  currentTime, so the car drives forward as you scroll down.
 -->
 @if (reduceMotion) {
   <section class="hero">
@@ -22,28 +22,29 @@
     </div>
   </section>
 } @else {
-  <section class="hero-scroll" #heroScroll>
-    <div class="hero-sticky">
-      <video
-        class="hero__media"
-        #heroVideo
-        muted
-        playsinline
-        preload="auto"
-        poster="hero/poster.webp"
-        aria-label="A race car silhouette driving forward through a dark tunnel, lit by cool blue underglow and motion-blurred light streaks."
-      >
-        <source src="hero/hero.mp4" type="video/mp4" />
-      </video>
-      <div class="hero__overlay" aria-hidden="true"></div>
-      <div class="hero__content container">
-        <h1 class="hero__title">F1 Dashboard</h1>
-        <p class="hero__tagline">
-          Drivers, constructors, and championship standings — every season, one place.
-        </p>
-        <a class="btn btn--primary" routerLink="/drivers">Explore drivers</a>
-        <p class="hero__hint" aria-hidden="true">Scroll ↓</p>
-      </div>
+  <div class="hero-bg" aria-hidden="true">
+    <video
+      class="hero__media"
+      #heroVideo
+      muted
+      playsinline
+      preload="auto"
+      poster="hero/poster.webp"
+      aria-label="A race car silhouette driving forward through a dark tunnel, lit by cool blue underglow and motion-blurred light streaks."
+    >
+      <source src="hero/hero.mp4" type="video/mp4" />
+    </video>
+    <div class="hero__overlay"></div>
+  </div>
+
+  <section class="hero-intro">
+    <div class="hero__content container">
+      <h1 class="hero__title">F1 Dashboard</h1>
+      <p class="hero__tagline">
+        Drivers, constructors, and championship standings — every season, one place.
+      </p>
+      <a class="btn btn--primary" routerLink="/drivers">Explore drivers</a>
+      <p class="hero__hint" aria-hidden="true">Scroll ↓</p>
     </div>
   </section>
 }

@@ -20,9 +20,7 @@ export class HomeComponent implements AfterViewInit, OnDestroy {
   private observer?: IntersectionObserver;
   private ticking = false;
 
-  /** Tall wrapper that provides the scroll distance the hero video scrubs over. */
-  @ViewChild('heroScroll') heroScroll?: ElementRef<HTMLElement>;
-  /** The hero video whose currentTime is driven by scroll position. */
+  /** The fixed-background hero video whose currentTime is driven by scroll. */
   @ViewChild('heroVideo') heroVideo?: ElementRef<HTMLVideoElement>;
 
   /** When true, skip the scroll-scrub video entirely and show the static poster. */
@@ -55,16 +53,15 @@ export class HomeComponent implements AfterViewInit, OnDestroy {
   }
 
   private updateScrub(): void {
-    const scroll = this.heroScroll?.nativeElement;
     const video = this.heroVideo?.nativeElement;
-    if (!scroll || !video || !video.duration || Number.isNaN(video.duration)) {
+    if (!video || !video.duration || Number.isNaN(video.duration)) {
       return;
     }
 
-    // How far we've scrolled into the pinned region, as 0..1.
-    const distance = scroll.offsetHeight - window.innerHeight;
-    const passed = Math.min(Math.max(-scroll.getBoundingClientRect().top, 0), distance);
-    const progress = distance > 0 ? passed / distance : 0;
+    // Map the first ~1.3 screens of scrolling to the full clip. The page scrolls
+    // normally over the fixed video background; this just drives the car forward.
+    const distance = window.innerHeight * 1.3;
+    const progress = Math.min(Math.max(window.scrollY / distance, 0), 1);
 
     const target = progress * video.duration;
     // fastSeek (where supported) is smoother for scrubbing than setting currentTime.
