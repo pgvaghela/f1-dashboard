@@ -26,7 +26,7 @@
 .hero-intro {
   position: relative;
   z-index: 1;
-  min-height: 150vh;
+  min-height: 260vh;
 }
 
 .hero-intro .hero__content {
@@ -34,6 +34,8 @@
   display: flex;
   flex-direction: column;
   justify-content: center;
+  /* keep children at their natural width (don't stretch the CTA full-width) */
+  align-items: flex-start;
 }
 
 /* Scroll affordance under the CTA, fades out as the user starts scrolling. */

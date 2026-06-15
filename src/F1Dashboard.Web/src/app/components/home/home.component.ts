@@ -58,9 +58,9 @@ export class HomeComponent implements AfterViewInit, OnDestroy {
       return;
     }
 
-    // Map the first ~1.3 screens of scrolling to the full clip. The page scrolls
+    // Map the first ~2.2 screens of scrolling to the full clip. The page scrolls
     // normally over the fixed video background; this just drives the car forward.
-    const distance = window.innerHeight * 1.3;
+    const distance = window.innerHeight * 2.2;
     const progress = Math.min(Math.max(window.scrollY / distance, 0), 1);
 
     const target = progress * video.duration;
