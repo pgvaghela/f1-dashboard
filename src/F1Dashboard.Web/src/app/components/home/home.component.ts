@@ -17,10 +17,13 @@ export class HomeComponent implements AfterViewInit, OnDestroy {
   private host = inject<ElementRef<HTMLElement>>(ElementRef);
   private observer?: IntersectionObserver;
 
+  /** When true, show the static poster instead of autoplaying the hero video. */
+  readonly reduceMotion =
+    typeof window !== 'undefined' &&
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
   ngAfterViewInit(): void {
-    const reduceMotion = window.matchMedia(
-      '(prefers-reduced-motion: reduce)'
-    ).matches;
+    const reduceMotion = this.reduceMotion;
 
     const targets = Array.from(
       this.host.nativeElement.querySelectorAll<HTMLElement>('.reveal')

@@ -1,12 +1,29 @@
 <!--
-  Hero visual: currently a CSS-only animated gradient (the documented fallback,
-  used because the Higgsfield MCP was not available in this environment).
-  To swap in a real Higgsfield asset later, drop the file into public/hero/ and
-  replace the `.hero__media` div with a <video poster=...> / <img> as described
-  in the task brief. The gradient animation is disabled under reduced-motion.
+  Hero visual: a Higgsfield-generated cinematic clip (public/hero/hero.mp4) with
+  a WebP poster for first paint. Under prefers-reduced-motion the video is not
+  rendered at all — the static poster image is shown instead, so nothing autoplays.
 -->
 <section class="hero">
-  <div class="hero__media" aria-hidden="true"></div>
+  @if (reduceMotion) {
+    <img
+      class="hero__media"
+      src="hero/poster.webp"
+      alt="A race car silhouette in a dark tunnel lit by cool blue underglow and streaking lights."
+    />
+  } @else {
+    <video
+      class="hero__media"
+      autoplay
+      muted
+      loop
+      playsinline
+      preload="metadata"
+      poster="hero/poster.webp"
+      aria-label="A race car silhouette streaking through a dark tunnel, lit by cool blue underglow and motion-blurred light streaks."
+    >
+      <source src="hero/hero.mp4" type="video/mp4" />
+    </video>
+  }
   <div class="hero__overlay" aria-hidden="true"></div>
 
   <div class="hero__content container">
