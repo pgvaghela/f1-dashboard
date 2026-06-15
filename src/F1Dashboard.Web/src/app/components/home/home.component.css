@@ -1,4 +1,5 @@
 /* ---------- Hero ---------- */
+/* Static hero (reduced-motion branch). */
 .hero {
   position: relative;
   height: 100vh;
@@ -6,6 +7,43 @@
   display: flex;
   align-items: center;
   overflow: hidden;
+}
+
+/* Scroll-scrub hero: a tall wrapper provides the scroll distance; the inner
+   pins to the viewport while scroll progress scrubs the video forward. */
+.hero-scroll {
+  position: relative;
+  height: 300vh;
+}
+
+.hero-sticky {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  min-height: 600px;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+}
+
+/* Scroll affordance under the CTA, fades out as the user starts scrolling. */
+.hero__hint {
+  margin: var(--space-4) 0 0;
+  font-size: 14px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-tertiary);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .hero__hint {
+    animation: hintPulse 2.4s ease-in-out infinite;
+  }
+}
+
+@keyframes hintPulse {
+  0%, 100% { opacity: 0.4; transform: translateY(0); }
+  50% { opacity: 1; transform: translateY(3px); }
 }
 
 /* Higgsfield-generated hero clip (or its poster under reduced motion),
