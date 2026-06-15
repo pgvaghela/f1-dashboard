@@ -12,23 +12,27 @@ public class ImportController : ControllerBase
 
     private readonly F1DataImporter _importer;
     private readonly IWebHostEnvironment _env;
+    private readonly IConfiguration _config;
 
-    public ImportController(F1DataImporter importer, IWebHostEnvironment env)
+    public ImportController(F1DataImporter importer, IWebHostEnvironment env, IConfiguration config)
     {
         _importer = importer;
         _env = env;
+        _config = config;
     }
 
     /// <summary>
     /// Rebuilds the database from the public Jolpica/Ergast F1 API.
-    /// Destructive (wipes existing rows), so it is only exposed in Development.
+    /// Destructive (wipes existing rows). Enabled in Development, or in any
+    /// environment when AllowImport=true (set AllowImport__=true to seed a
+    /// freshly deployed database once, then turn it back off).
     /// Example: POST /api/import?seasons=2024,2025
     /// </summary>
     [HttpPost]
     public async Task<IActionResult> Import(
         [FromQuery] string? seasons, CancellationToken ct)
     {
-        if (!_env.IsDevelopment())
+        if (!_env.IsDevelopment() && !_config.GetValue<bool>("AllowImport"))
         {
             return NotFound();
         }

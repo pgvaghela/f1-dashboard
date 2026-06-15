@@ -5,12 +5,28 @@ using F1Dashboard.Api.Import;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
+// Hosts like Render/Railway inject the port to listen on via $PORT.
+var port = Environment.GetEnvironmentVariable("PORT");
+if (!string.IsNullOrEmpty(port))
+{
+    builder.WebHost.UseUrls($"http://0.0.0.0:{port}");
+}
+
+// Allowed CORS origins: always the local dev frontend, plus any configured for
+// the deployed frontend (set Cors__AllowedOrigins="https://your-app.vercel.app").
+var allowedOrigins = new List<string> { "http://localhost:4200" };
+var configuredOrigins = builder.Configuration["Cors:AllowedOrigins"];
+if (!string.IsNullOrWhiteSpace(configuredOrigins))
+{
+    allowedOrigins.AddRange(
+        configuredOrigins.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+}
+
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("AllowAngularDev", policy =>
+    options.AddPolicy("AppCors", policy =>
     {
-        policy.WithOrigins("http://localhost:4200")
+        policy.WithOrigins(allowedOrigins.ToArray())
               .AllowAnyHeader()
               .AllowAnyMethod();
     });
@@ -32,18 +48,27 @@ builder.Services.AddHttpClient<F1DataImporter>(client =>
 
 var app = builder.Build();
 
+// Create the schema on a fresh database (e.g. a new hosted Postgres). No-op if
+// the tables already exist. Data is loaded separately via the import endpoint.
+if (!string.IsNullOrWhiteSpace(app.Configuration.GetConnectionString("F1Database")))
+{
+    using var scope = app.Services.CreateScope();
+    var db = scope.ServiceProvider.GetRequiredService<F1DbContext>();
+    db.Database.EnsureCreated();
+}
+
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
     app.MapScalarApiReference();
+    // Behind a hosting proxy TLS is terminated upstream, so only redirect locally.
+    app.UseHttpsRedirection();
 }
-
-app.UseHttpsRedirection();
 
 app.UseAuthorization();
 
-app.UseCors("AllowAngularDev");
+app.UseCors("AppCors");
 
 app.MapControllers();
 

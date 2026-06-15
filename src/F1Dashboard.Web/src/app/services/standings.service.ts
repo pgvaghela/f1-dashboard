@@ -2,12 +2,13 @@ import { HttpClient } from '@angular/common/http';
 import { Injectable } from '@angular/core';
 import { Observable } from 'rxjs';
 import { DriverStanding, ConstructorStanding } from '../models/standing';
+import { environment } from '../../environments/environment';
 
 @Injectable({
   providedIn: 'root'
 })
 export class StandingsService {
-  private readonly apiUrl = 'http://localhost:5197/api/standings';
+  private readonly apiUrl = `${environment.apiBaseUrl}/standings`;
 
   constructor(private http: HttpClient) {}
 

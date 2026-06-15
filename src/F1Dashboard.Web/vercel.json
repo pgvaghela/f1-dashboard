@@ -1,0 +1,10 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "angular",
+  "installCommand": "npm ci",
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist/f1-dashboard.web/browser",
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
+}
