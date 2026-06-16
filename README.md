@@ -8,6 +8,14 @@ A full-stack Formula 1 analytics dashboard — browse drivers, constructors, and
 
 ![F1 Dashboard landing page](docs/landing.jpg)
 
+![Race winner predictor grading a completed race against the actual podium](docs/predictor.png)
+
+*Race winner predictor — for a completed race, the model's pick is graded against the real result (it called Qatar 2024 for Verstappen, who won).*
+
+![Race winner predictor projecting an upcoming race before qualifying](docs/predictor-upcoming.png)
+
+*Upcoming races have no qualifying yet, so a separate grid-free model projects the podium from current form.*
+
 ![Standings page](docs/standings.png)
 
 ## Stack
