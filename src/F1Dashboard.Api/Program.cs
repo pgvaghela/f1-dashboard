@@ -2,6 +2,7 @@ using Scalar.AspNetCore;
 using Microsoft.EntityFrameworkCore;
 using F1Dashboard.Api.Data;
 using F1Dashboard.Api.Import;
+using F1Dashboard.Api.Ml;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -38,6 +39,10 @@ builder.Services.AddOpenApi();
 builder.Services.AddDbContext<F1DbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("F1Database"))
            .UseSnakeCaseNamingConvention());
+
+// Trains and caches the ML.NET race-winner model (singleton; trains lazily on
+// first prediction request from the imported data).
+builder.Services.AddSingleton<RaceWinnerModel>();
 
 // Importer pulls live F1 data from the Jolpica/Ergast public API.
 builder.Services.AddHttpClient<F1DataImporter>(client =>

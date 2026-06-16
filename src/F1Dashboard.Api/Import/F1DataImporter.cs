@@ -64,6 +64,10 @@ public class F1DataImporter
             await ImportSeasonAsync(
                 season, circuits, constructors, drivers, races, results,
                 resultMillis, winnerMillis, ct);
+
+            // Also pull the full calendar so races that haven't been run yet
+            // (no results) still exist — the predictor uses them for upcoming races.
+            await ImportScheduleAsync(season, circuits, races, ct);
         }
 
         // Second pass: gap = (this total time - winner total time) in seconds.
@@ -176,6 +180,46 @@ public class F1DataImporter
             offset += PageSize;
             await Task.Delay(250, ct); // be polite to the public API
         } while (offset < total);
+    }
+
+    /// <summary>
+    /// Adds any scheduled races for the season that the results feed didn't already
+    /// create (i.e. upcoming rounds with no results yet). Existing races are left as-is.
+    /// </summary>
+    private async Task ImportScheduleAsync(
+        int season,
+        Dictionary<string, Circuit> circuits,
+        Dictionary<string, Race> races,
+        CancellationToken ct)
+    {
+        var url = $"{BaseUrl}/{season}/races.json?limit={PageSize}";
+        var response = await _http.GetFromJsonAsync<ErgastResponse>(url, JsonOptions, ct);
+        if (response is null)
+        {
+            return;
+        }
+
+        foreach (var race in response.MRData.RaceTable.Races)
+        {
+            var circuit = GetOrAdd(circuits, race.Circuit.CircuitId, () => new Circuit
+            {
+                CircuitName = race.Circuit.CircuitName,
+                Country = race.Circuit.Location.Country,
+                Locality = race.Circuit.Location.Locality
+            });
+
+            var raceKey = RaceKey(ParseInt(race.Season), ParseInt(race.Round));
+            GetOrAdd(races, raceKey, () => new Race
+            {
+                Season = ParseInt(race.Season),
+                Round = ParseInt(race.Round),
+                Name = race.RaceName,
+                Date = ParseDate(race.Date),
+                Circuit = circuit
+            });
+        }
+
+        await Task.Delay(250, ct); // be polite to the public API
     }
 
     private async Task ReplaceDataAsync(

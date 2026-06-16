@@ -1,0 +1,407 @@
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.head .page__subtitle {
+  max-width: 60ch;
+}
+
+/* Accuracy pill */
+.accuracy {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background-color: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  padding: var(--space-2) var(--space-3);
+}
+
+.accuracy__value {
+  font-size: 32px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--color-accent);
+  font-variant-numeric: tabular-nums;
+}
+
+.accuracy__label {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-text-tertiary);
+}
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.season {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.season__label {
+  color: var(--color-text-secondary);
+  font-size: 15px;
+}
+
+.season__select {
+  background-color: var(--color-bg-elevated);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-family: var(--font-system);
+  font-size: 15px;
+  cursor: pointer;
+}
+
+.season__select--wide {
+  min-width: 260px;
+}
+
+.season__select:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* ---------- Predicted podium (finish-line animation) ---------- */
+.podium {
+  position: relative;
+  background: linear-gradient(160deg, var(--color-bg-elevated), var(--color-bg-secondary));
+  border: 1px solid var(--color-border);
+  border-radius: 18px;
+  padding: var(--space-3) var(--space-4) var(--space-4);
+  margin-bottom: var(--space-4);
+  overflow: hidden;
+}
+
+.podium--hit {
+  border-color: rgba(48, 209, 88, 0.5);
+}
+
+.podium--miss {
+  border-color: rgba(255, 107, 107, 0.35);
+}
+
+.podium__top {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+}
+
+.podium__tag {
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-text-tertiary);
+  font-weight: 600;
+}
+
+.podium__note {
+  font-size: 12px;
+  color: var(--color-text-tertiary);
+  border: 1px solid var(--color-border);
+  border-radius: 980px;
+  padding: 2px 10px;
+}
+
+.grid {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.lane {
+  display: grid;
+  grid-template-columns: 1fr 230px;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+/* Track the car drives along, with a checkered finish line at the right edge. */
+.lane__track {
+  position: relative;
+  height: 56px;
+  border-bottom: 1px dashed var(--color-border);
+}
+
+.lane__finish {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 6px;
+  width: 10px;
+  background: repeating-conic-gradient(#fff 0 25%, #0a0a0a 0 50%) 0 0 / 10px 10px;
+  border-radius: 2px;
+  opacity: 0.85;
+}
+
+.car {
+  position: absolute;
+  bottom: 2px;
+  right: 14px;
+  width: 132px;
+  filter: drop-shadow(0 6px 8px rgba(0, 0, 0, 0.45));
+  animation: drive 1.2s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.car__svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+/* P1 crosses first and rests at the line; P2/P3 settle progressively behind. */
+.lane:nth-child(1) .car {
+  --rest: 0px;
+  animation-delay: 0.05s;
+}
+.lane:nth-child(2) .car {
+  --rest: -56px;
+  animation-delay: 0.32s;
+}
+.lane:nth-child(3) .car {
+  --rest: -112px;
+  animation-delay: 0.58s;
+}
+
+@keyframes drive {
+  from {
+    transform: translateX(calc(-100vw));
+    opacity: 0;
+  }
+  40% {
+    opacity: 1;
+  }
+  to {
+    transform: translateX(var(--rest, 0px));
+    opacity: 1;
+  }
+}
+
+.lane__info {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.lane__pos {
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--color-text-tertiary);
+  font-variant-numeric: tabular-nums;
+  width: 32px;
+}
+
+.lane:nth-child(1) .lane__pos {
+  color: #ffd60a;
+}
+
+.lane__driver {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+
+.lane__code {
+  font-weight: 700;
+  font-size: 17px;
+  border-left: 3px solid var(--team);
+  padding-left: 8px;
+  line-height: 1.2;
+}
+
+.lane__team {
+  font-size: 12px;
+  color: var(--color-text-tertiary);
+  padding-left: 8px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.lane__prob {
+  font-weight: 700;
+  font-size: 17px;
+  color: var(--color-accent);
+  font-variant-numeric: tabular-nums;
+}
+
+.verdict {
+  margin-top: var(--space-3);
+  display: inline-block;
+  font-size: 15px;
+  font-weight: 600;
+  border-radius: 980px;
+  padding: 8px 16px;
+}
+
+.verdict--hit {
+  background-color: rgba(48, 209, 88, 0.15);
+  color: #30d158;
+}
+
+.verdict--miss {
+  background-color: rgba(255, 107, 107, 0.12);
+  color: #ff6b6b;
+}
+
+/* ---------- Ranked field ---------- */
+.ranking {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 28px minmax(150px, 1.6fr) minmax(80px, 3fr) 44px 64px 56px;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 10px var(--space-2);
+  border-radius: 12px;
+  border: 1px solid transparent;
+  background-color: var(--color-bg-secondary);
+}
+
+.row--pick {
+  border-color: rgba(41, 151, 255, 0.4);
+  background-color: rgba(41, 151, 255, 0.06);
+}
+
+.row--winner .row__code {
+  color: #30d158;
+}
+
+.row__rank {
+  color: var(--color-text-tertiary);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  font-size: 14px;
+}
+
+.row__driver {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.row__code {
+  font-weight: 700;
+  font-size: 15px;
+}
+
+.row__name {
+  color: var(--color-text-secondary);
+  font-size: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.row__team {
+  color: var(--color-text-tertiary);
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.row__bar {
+  height: 8px;
+  background-color: var(--color-bg-elevated);
+  border-radius: 980px;
+  overflow: hidden;
+}
+
+.row__bar-fill {
+  height: 100%;
+  border-radius: 980px;
+  background: linear-gradient(90deg, #2997ff, #7d5bff);
+  transition: width 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.row--pick .row__bar-fill {
+  background: linear-gradient(90deg, #2997ff, #30d158);
+}
+
+.row__grid {
+  color: var(--color-text-tertiary);
+  font-size: 13px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.row__prob {
+  font-weight: 600;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.row__result {
+  text-align: right;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.badge {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 3px 8px;
+  border-radius: 980px;
+}
+
+.badge--winner {
+  background-color: rgba(48, 209, 88, 0.15);
+  color: #30d158;
+}
+
+.footnote {
+  margin-top: var(--space-4);
+  color: var(--color-text-tertiary);
+  font-size: 13px;
+  max-width: 80ch;
+}
+
+/* Narrow screens: hide the heavier columns, keep code + bar + prob */
+@media (max-width: 640px) {
+  .row {
+    grid-template-columns: 24px minmax(60px, 1fr) minmax(60px, 2fr) 56px;
+  }
+  .row__name,
+  .row__team,
+  .row__grid {
+    display: none;
+  }
+
+  .lane {
+    grid-template-columns: 1fr 150px;
+    gap: var(--space-2);
+  }
+  .car {
+    width: 104px;
+  }
+  .lane__track {
+    height: 46px;
+  }
+  .lane__team {
+    display: none;
+  }
+}

@@ -1,0 +1,186 @@
+<div class="page">
+  <div class="head">
+    <div>
+      <h1 class="page__title">Race Winner Predictor</h1>
+      <p class="page__subtitle">
+        A FastTree model (ML.NET), trained walk-forward on prior races, ranks each driver's
+        chance of winning — then we reveal how it did.
+      </p>
+    </div>
+
+    @if (result) {
+      <div class="accuracy" title="Share of races whose actual winner was the model's top pick (walk-forward).">
+        <span class="accuracy__value">{{ result.modelAccuracy | percent:'1.0-0' }}</span>
+        <span class="accuracy__label">winner called</span>
+      </div>
+    }
+  </div>
+
+  <div class="controls">
+    <label class="season">
+      <span class="season__label">Season</span>
+      <select
+        class="season__select"
+        [value]="selectedSeason"
+        (change)="onSeasonChange($any($event.target).value)"
+      >
+        @for (season of seasons; track season) {
+          <option [value]="season">{{ season }}</option>
+        }
+      </select>
+    </label>
+
+    <label class="season">
+      <span class="season__label">Grand Prix</span>
+      <select
+        class="season__select season__select--wide"
+        [value]="selectedRaceId"
+        [disabled]="loadingRaces || races.length === 0"
+        (change)="onRaceChange($any($event.target).value)"
+      >
+        @for (race of races; track race.raceId) {
+          <option [value]="race.raceId">
+            Round {{ race.round }} · {{ race.name }}{{ race.hasResult ? '' : ' · upcoming' }}
+          </option>
+        }
+      </select>
+    </label>
+  </div>
+
+  @if (loadingRaces || loadingPrediction) {
+    <p class="state">Crunching the numbers…</p>
+  }
+
+  @if (error) {
+    <p class="state state--error">{{ error }}</p>
+  }
+
+  @if (result && !loadingPrediction && !error) {
+    <!-- Predicted podium: top 3 cars crossing the finish line -->
+    <div class="podium" [class.podium--hit]="hasResult && calledIt" [class.podium--miss]="hasResult && !calledIt">
+      <div class="podium__top">
+        <span class="podium__tag">{{ isUpcoming ? 'Projected podium' : 'Predicted podium' }}</span>
+        @if (isUpcoming) {
+          <span class="podium__note" title="Qualifying hasn't happened — estimate based on driver and team form, no grid position.">
+            upcoming · awaiting qualifying
+          </span>
+        } @else if (result.basis === 'grid-prior') {
+          <span class="podium__note" title="Too few prior races to train on — ranked by grid position.">
+            early-season · grid-based
+          </span>
+        }
+      </div>
+
+      @for (key of [animateKey]; track key) {
+        <div class="grid">
+          @for (driver of topThree; track driver.driverId; let i = $index) {
+            <div class="lane" [style.--team]="teamColor(driver.constructorName)">
+              <div class="lane__track">
+                <div class="car">
+                  <svg class="car__svg" viewBox="0 0 132 44" aria-hidden="true">
+                    <!-- rear wing -->
+                    <rect x="2" y="9" width="11" height="3" rx="1.5" fill="var(--team)" />
+                    <rect x="5" y="11" width="4" height="13" fill="var(--team)" />
+                    <!-- body / floor -->
+                    <path
+                      d="M7 26 H19 Q25 16 45 16 H66 Q73 10 87 12 L109 16 Q121 18 127 24 V27 Q121 30 109 30 H15 Q9 30 7 26 Z"
+                      fill="var(--team)"
+                    />
+                    <!-- sidepod highlight -->
+                    <path d="M45 18 H66 Q72 13 84 14 L84 18 Z" fill="#ffffff" opacity="0.18" />
+                    <!-- halo + helmet -->
+                    <path d="M61 16 Q66 8 75 9 L81 12" fill="none" stroke="#0c0c0e" stroke-width="2.5" />
+                    <circle cx="69" cy="13" r="3" fill="#0c0c0e" />
+                    <!-- nose + front wing -->
+                    <path d="M127 24 L132 25 V27 L127 27 Z" fill="var(--team)" />
+                    <rect x="119" y="29" width="15" height="3" rx="1" fill="#15151a" />
+                    <!-- wheels -->
+                    <circle cx="34" cy="31" r="10" fill="#111114" />
+                    <circle cx="34" cy="31" r="4.5" fill="#2a2a30" />
+                    <circle cx="98" cy="31" r="10" fill="#111114" />
+                    <circle cx="98" cy="31" r="4.5" fill="#2a2a30" />
+                  </svg>
+                </div>
+                <div class="lane__finish" aria-hidden="true"></div>
+              </div>
+
+              <div class="lane__info">
+                <span class="lane__pos">P{{ i + 1 }}</span>
+                <div class="lane__driver">
+                  <span class="lane__code">{{ driver.code }}</span>
+                  <span class="lane__team">{{ driver.constructorName }}</span>
+                </div>
+                <span class="lane__prob">{{ driver.winProbability | percent:'1.1-1' }}</span>
+                @if (driver.isActualWinner) {
+                  <span class="badge badge--winner">WON</span>
+                }
+              </div>
+            </div>
+          }
+        </div>
+      }
+
+      @if (hasResult) {
+        <div class="verdict" [class.verdict--hit]="calledIt" [class.verdict--miss]="!calledIt">
+          @if (calledIt) {
+            ✓ Model called it — {{ topPick?.driverName }} won
+          } @else {
+            ✗ Actual winner: {{ actualWinner?.driverName }} (model had it at
+            {{ actualWinner?.winProbability | percent:'1.1-1' }})
+          }
+        </div>
+      }
+    </div>
+
+    <!-- Full field, ranked -->
+    <div class="ranking">
+      @for (driver of result.drivers; track driver.driverId; let i = $index) {
+        <div
+          class="row"
+          [class.row--pick]="driver.isPredictedWinner"
+          [class.row--winner]="driver.isActualWinner"
+        >
+          <span class="row__rank">{{ i + 1 }}</span>
+
+          <div class="row__driver">
+            <span class="row__code">{{ driver.code }}</span>
+            <span class="row__name">{{ driver.driverName }}</span>
+            <span class="row__team">{{ driver.constructorName }}</span>
+          </div>
+
+          <div class="row__bar">
+            <div class="row__bar-fill" [style.width.%]="barWidth(driver)"></div>
+          </div>
+
+          <span class="row__grid">{{ driver.grid ? 'P' + driver.grid : '—' }}</span>
+          <span class="row__prob">{{ driver.winProbability * 100 | number:'1.1-1' }}%</span>
+
+          <span class="row__result">
+            @if (driver.isActualWinner) {
+              <span class="badge badge--winner">WON</span>
+            } @else if (driver.actualFinish) {
+              P{{ driver.actualFinish }}
+            } @else {
+              —
+            }
+          </span>
+        </div>
+      }
+    </div>
+
+    @if (isUpcoming) {
+      <p class="footnote">
+        This race hasn't run yet, so there's no qualifying or grid. The estimate uses a model
+        trained <em>without</em> grid position — driver &amp; constructor recent form, season
+        points pace, and circuit history only — over the current lineup. Expect it to be less
+        confident than a post-qualifying prediction.
+      </p>
+    } @else {
+      <p class="footnote">
+        Features: grid position, pole, driver &amp; constructor recent form, season points
+        pace, and circuit history — all computed only from races before this one, so the model
+        never sees the result it predicts.
+      </p>
+    }
+  }
+</div>
