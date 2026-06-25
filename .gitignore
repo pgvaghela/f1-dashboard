@@ -3,3 +3,11 @@ obj/
 .vs/
 .idea/
 *.user
+
+# Python telemetry tooling
+tools/.venv/
+tools/.fastf1cache/
+tools/__pycache__/
+**/__pycache__/
+*.pyc
+tools/*.log
