@@ -1,0 +1,320 @@
+<div class="page">
+  <h1 class="page__title">Lap Data</h1>
+  <p class="page__subtitle">
+    Replay a single lap on the track map, with live telemetry on hover. Data from FastF1 (2018+).
+  </p>
+
+  @if (!loading && seasons.length === 0) {
+    <p class="state">
+      No telemetry has been ingested yet. Run
+      <code>tools/ingest_telemetry.py</code> to load a session.
+    </p>
+  } @else {
+    <!-- Sticky cascading selectors -->
+    <div class="selector-bar liquid-glass">
+      <div class="controls">
+        <label class="field">
+          <span class="field__label">Season</span>
+          <select class="field__select liquid-glass" [value]="selectedSeason"
+                  (change)="onSeasonChange($any($event.target).value)">
+            @for (s of seasons; track s) {
+              <option [value]="s">{{ s }}</option>
+            }
+          </select>
+        </label>
+
+        <label class="field">
+          <span class="field__label">Race / Track</span>
+          <select class="field__select field__select--wide liquid-glass" [value]="selectedRaceId"
+                  [disabled]="races.length === 0"
+                  (change)="onRaceChange($any($event.target).value)">
+            @for (r of races; track r.raceId) {
+              <option [value]="r.raceId">Round {{ r.round }} · {{ r.name }}</option>
+            }
+          </select>
+        </label>
+
+        <label class="field">
+          <span class="field__label">Driver</span>
+          <select class="field__select liquid-glass" [value]="selectedDriverId"
+                  [disabled]="drivers.length === 0"
+                  (change)="onDriverChange($any($event.target).value)">
+            @for (d of drivers; track d.driverId) {
+              <option [value]="d.driverId">{{ d.code }} · {{ d.name }}</option>
+            }
+          </select>
+        </label>
+
+        <label class="field">
+          <span class="field__label">Lap</span>
+          <div class="field__row">
+            <select class="field__select liquid-glass" [value]="selectedLapId"
+                    [disabled]="laps.length === 0"
+                    (change)="onLapChange($any($event.target).value)">
+              @for (l of laps; track l.lapId) {
+                <option [value]="l.lapId">
+                  Lap {{ l.lapNumber }}{{ l.lapTimeSeconds ? ' · ' + formatLapTime(l.lapTimeSeconds) : '' }}
+                </option>
+              }
+            </select>
+            <button type="button" class="chip liquid-glass" [class.chip--active]="isOnFastestLap"
+                    [disabled]="laps.length === 0" (click)="selectFastestLap()" title="Jump to fastest lap">
+              ⚡ Fastest
+            </button>
+          </div>
+        </label>
+
+        <button type="button" class="compare-toggle liquid-glass" [class.compare-toggle--active]="compareOn"
+                [disabled]="drivers.length < 2" (click)="toggleCompare()">
+          {{ compareOn ? '✕ Compare' : '+ Compare' }}
+        </button>
+      </div>
+
+      @if (compareOn) {
+        <div class="controls controls--compare">
+          <span class="compare-tag">vs</span>
+          <label class="field">
+            <span class="field__label">Driver</span>
+            <select class="field__select liquid-glass" [value]="compareDriverId"
+                    (change)="onCompareDriverChange($any($event.target).value)">
+              @for (d of drivers; track d.driverId) {
+                <option [value]="d.driverId">{{ d.code }} · {{ d.name }}</option>
+              }
+            </select>
+          </label>
+          <label class="field">
+            <span class="field__label">Lap</span>
+            <select class="field__select liquid-glass" [value]="compareLapId"
+                    [disabled]="compareLaps.length === 0"
+                    (change)="onCompareLapChange($any($event.target).value)">
+              @for (l of compareLaps; track l.lapId) {
+                <option [value]="l.lapId">
+                  Lap {{ l.lapNumber }}{{ l.lapTimeSeconds ? ' · ' + formatLapTime(l.lapTimeSeconds) : '' }}
+                </option>
+              }
+            </select>
+          </label>
+        </div>
+      }
+    </div>
+
+    @if (error) {
+      <p class="state state--error">{{ error }}</p>
+    }
+
+    @if (loadingLap) {
+      <p class="state">Loading lap telemetry…</p>
+    }
+
+    @if (lap && !loadingLap) {
+      @if (!hasSamples) {
+        <p class="state">This lap has no telemetry samples.</p>
+      } @else {
+        <div class="lap-layout">
+          <!-- Track map + trace -->
+          <div class="track-card hud-panel liquid-glass" [style.--team-color]="lap.teamColor">
+            <div class="track-wrap">
+              <!-- Self-describing overlay label -->
+              <div class="overlay">
+                <span class="overlay__chip" [style.background]="lap.teamColor">
+                  {{ selectedDriver?.code }}
+                </span>
+                <span class="overlay__meta">
+                  Lap {{ lap.lapNumber }} · {{ formatLapTime(lap.lapTimeSeconds) }} · {{ lap.compound || '—' }}
+                </span>
+                @if (compareOn && compareLap) {
+                  <span class="overlay__chip overlay__chip--ghost" [style.border-color]="compareLap.teamColor">
+                    {{ compareDriver?.code }}
+                  </span>
+                }
+              </div>
+
+              <svg
+                class="track-svg"
+                [attr.viewBox]="'0 0 ' + lap.outline.width + ' ' + lap.outline.height"
+                (mousemove)="onTrackMove($event)"
+                (mouseleave)="onTrackLeave()"
+              >
+                <path class="track-outline" [attr.d]="lap.outline.path" />
+                @for (sp of lap.outline.sectorPaths; track $index) {
+                  @if (sp) {
+                    <path class="track-sector" [attr.d]="sp" [style.stroke]="sectorStroke($index)" />
+                  }
+                }
+
+                @if (hoverSample) {
+                  <circle class="hover-dot" [attr.cx]="hoverSample.x" [attr.cy]="hoverSample.y" r="7" />
+                }
+
+                <!-- Fading motion trail behind the car. -->
+                @for (t of carTrail; track $index) {
+                  <circle class="trail-dot" [attr.cx]="t.x" [attr.cy]="t.y" [attr.r]="t.r"
+                          [style.opacity]="t.opacity" [style.fill]="lap.teamColor" />
+                }
+
+                @if (compareOn && compareCurrentSample) {
+                  <circle
+                    class="ghost-dot"
+                    [attr.cx]="compareCurrentSample.x"
+                    [attr.cy]="compareCurrentSample.y"
+                    r="10"
+                    [style.stroke]="compareLap?.teamColor"
+                  />
+                }
+
+                @if (currentSample) {
+                  <circle
+                    class="car-dot"
+                    [attr.cx]="currentSample.x"
+                    [attr.cy]="currentSample.y"
+                    r="11"
+                    [style.fill]="lap.teamColor"
+                  />
+                }
+              </svg>
+
+              @if (hoverSample) {
+                <div class="tooltip" [style.left.px]="hoverX" [style.top.px]="hoverY">
+                  <div class="tooltip__row"><span>Speed</span><strong>{{ hoverSample.speed | number:'1.0-0' }} km/h</strong></div>
+                  <div class="tooltip__row"><span>Tyre</span><strong>{{ hoverSample.compound || '—' }}</strong></div>
+                  <div class="tooltip__row"><span>Position</span><strong>{{ hoverSample.position ? 'P' + hoverSample.position : '—' }}</strong></div>
+                </div>
+              }
+            </div>
+
+            <!-- Playback controls -->
+            <div class="playback">
+              <button type="button" class="step-btn" (click)="stepBack()" title="Step back (←)">◀◀</button>
+              <button type="button" class="play-btn" (click)="togglePlay()" [attr.aria-label]="isPlaying ? 'Pause' : 'Play'">
+                {{ isPlaying ? '❚❚' : '►' }}
+              </button>
+              <button type="button" class="step-btn" (click)="stepForward()" title="Step forward (→)">▶▶</button>
+              <input
+                class="scrubber"
+                type="range"
+                min="0"
+                [max]="maxIndex"
+                [value]="currentIndex"
+                (input)="onScrub($any($event.target).value)"
+              />
+              <span class="playback__time">
+                {{ currentSample ? (currentSample.t | number:'1.1-1') : '0.0' }} / {{ lap.lapTimeSeconds | number:'1.1-1' }}s
+              </span>
+            </div>
+            <p class="playback__hint">Space play/pause · ←/→ step · hover the speed trace to scrub</p>
+          </div>
+
+          <!-- Side rail: driver(s) + sectors -->
+          <div class="side">
+            @if (selectedDriver) {
+              <div class="driver-card hud-panel liquid-glass" [style.--team]="lap.teamColor">
+                @if (selectedDriver.headshotUrl && !photoFailed.has(selectedDriver.headshotUrl)) {
+                  <img class="driver-card__photo" [src]="selectedDriver.headshotUrl"
+                       [alt]="selectedDriver.name" (error)="onPhotoError(selectedDriver.headshotUrl)" />
+                } @else {
+                  <span class="driver-card__dot"></span>
+                }
+                <div>
+                  <div class="driver-card__name">{{ selectedDriver.name }}</div>
+                  <div class="driver-card__team">{{ selectedDriver.teamName }}</div>
+                </div>
+              </div>
+            }
+
+            @if (compareOn && compareDriver && compareLap) {
+              <div class="driver-card driver-card--ghost hud-panel liquid-glass" [style.--team]="compareLap.teamColor">
+                @if (compareDriver.headshotUrl && !photoFailed.has(compareDriver.headshotUrl)) {
+                  <img class="driver-card__photo" [src]="compareDriver.headshotUrl"
+                       [alt]="compareDriver.name" (error)="onPhotoError(compareDriver.headshotUrl)" />
+                } @else {
+                  <span class="driver-card__dot"></span>
+                }
+                <div>
+                  <div class="driver-card__name">{{ compareDriver.name }}</div>
+                  <div class="driver-card__team">{{ compareDriver.teamName }}</div>
+                </div>
+              </div>
+            }
+
+            <div class="stats hud-panel liquid-glass">
+              <div><span>Lap</span><strong class="count">{{ lap.lapNumber }}</strong></div>
+              <div><span>Time</span><strong>{{ formatLapTime(lap.lapTimeSeconds) }}</strong></div>
+              <div><span>Top</span><strong class="count" [countUp]="topSpeed"></strong></div>
+              <div><span>Avg</span><strong class="count" [countUp]="avgSpeed"></strong></div>
+            </div>
+
+            @if (compareOn && compareLap) {
+              <div class="sectors hud-panel liquid-glass">
+                <h2 class="sectors__title">Sector comparison</h2>
+                <div class="cmp-row cmp-row--head">
+                  <span></span>
+                  <span class="cmp-code" [style.color]="lap.teamColor">{{ selectedDriver?.code }}</span>
+                  <span class="cmp-code" [style.color]="compareLap.teamColor">{{ compareDriver?.code }}</span>
+                  <span>Δ</span>
+                </div>
+                @for (d of sectorDeltas; track d.sector) {
+                  <div class="cmp-row">
+                    <span class="cmp-label">S{{ d.sector }}</span>
+                    <span>{{ d.primary != null ? (d.primary | number:'1.3-3') : '—' }}</span>
+                    <span>{{ d.compare != null ? (d.compare | number:'1.3-3') : '—' }}</span>
+                    <span class="delta" [class]="deltaClass(d.delta)">{{ formatDelta(d.delta) }}</span>
+                  </div>
+                }
+                <div class="cmp-row cmp-row--total">
+                  <span class="cmp-label">Lap</span>
+                  <span>{{ formatLapTime(lap.lapTimeSeconds) }}</span>
+                  <span>{{ formatLapTime(compareLap.lapTimeSeconds) }}</span>
+                  <span class="delta" [class]="deltaClass(lapTimeDelta)">{{ formatDelta(lapTimeDelta) }}</span>
+                </div>
+                <p class="cmp-note">Δ = {{ compareDriver?.code }} relative to {{ selectedDriver?.code }} (green = faster)</p>
+              </div>
+            } @else {
+              <div class="sectors hud-panel liquid-glass">
+                <h2 class="sectors__title">Sector times</h2>
+                @for (sec of lap.sectors; track sec.sector) {
+                  <div class="sector" [class]="sectorClass(sec.color)">
+                    <span class="sector__label">S{{ sec.sector }}</span>
+                    <span class="sector__time">{{ sec.timeSeconds != null ? (sec.timeSeconds | number:'1.3-3') + 's' : '—' }}</span>
+                  </div>
+                }
+                <div class="legend">
+                  <span><i class="dot dot--purple"></i> Session best</span>
+                  <span><i class="dot dot--green"></i> Personal best</span>
+                  <span><i class="dot dot--yellow"></i> Slower</span>
+                </div>
+              </div>
+            }
+          </div>
+
+          <!-- Speed trace (full width, synced to playback) -->
+          <div class="trace-card hud-panel liquid-glass">
+            <div class="trace-head">
+              <h2 class="trace-title">Speed trace</h2>
+              <div class="trace-legend">
+                <span><i class="line" [style.background]="lap.teamColor"></i> {{ selectedDriver?.code }}</span>
+                @if (compareOn && compareLap) {
+                  <span><i class="line line--ghost" [style.background]="compareLap.teamColor"></i> {{ compareDriver?.code }}</span>
+                }
+              </div>
+            </div>
+            <svg class="trace-svg" [attr.viewBox]="'0 0 ' + traceW + ' ' + traceH"
+                 preserveAspectRatio="none" (mousemove)="onTraceMove($event)">
+              @if (compareSpeedPath) {
+                <path class="trace-line trace-line--ghost" [attr.d]="compareSpeedPath"
+                      [style.stroke]="compareLap?.teamColor" [style.color]="compareLap?.teamColor" />
+              }
+              @if (primarySpeedPath) {
+                <path class="trace-line trace-line--draw" [attr.d]="primarySpeedPath" pathLength="1"
+                      [style.stroke]="lap.teamColor" [style.color]="lap.teamColor" />
+              }
+              <line class="trace-cursor" [attr.x1]="cursorX" [attr.x2]="cursorX" y1="0" [attr.y2]="traceH" />
+            </svg>
+            <div class="trace-axis">
+              <span>start</span><span>lap distance →</span><span>finish</span>
+            </div>
+          </div>
+        </div>
+      }
+    }
+  }
+</div>
