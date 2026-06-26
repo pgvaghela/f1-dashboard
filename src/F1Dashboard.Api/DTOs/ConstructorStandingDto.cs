@@ -5,5 +5,6 @@ public class ConstructorStandingDto
     public int Position { get; set; }
     public int ConstructorId { get; set; }
     public string TeamName { get; set; } = string.Empty;
+    public string Nationality { get; set; } = string.Empty;
     public decimal TotalPoints { get; set; }
 }

@@ -19,28 +19,41 @@ public class StandingsController : ControllerBase
     [HttpGet("drivers/{season}")]
     public async Task<ActionResult<IEnumerable<DriverStandingDto>>> GetDriverStandings(int season)
     {
-        var standings = await _context.RaceResults
+        var rows = await _context.RaceResults
             .Where(rr => rr.Race.Season == season)
-            .GroupBy(rr => new
+            .Select(rr => new
             {
                 rr.DriverId,
                 rr.Driver.FirstName,
-                rr.Driver.LastName
+                rr.Driver.LastName,
+                rr.Driver.Code,
+                rr.Driver.Nationality,
+                rr.Race.Round,
+                TeamName = rr.Constructor.TeamName,
+                rr.Points
             })
+            .ToListAsync();
+
+        if (rows.Count == 0)
+        {
+            return NotFound($"No race results found for season {season}");
+        }
+
+        var standings = rows
+            .GroupBy(r => new { r.DriverId, r.FirstName, r.LastName, r.Code, r.Nationality })
             .Select(g => new DriverStandingDto
             {
                 DriverId = g.Key.DriverId,
                 FirstName = g.Key.FirstName,
                 LastName = g.Key.LastName,
-                TotalPoints = g.Sum(rr => rr.Points)
+                Code = g.Key.Code,
+                Nationality = g.Key.Nationality,
+                // The driver's most recent team this season (handles mid-season moves).
+                TeamName = g.OrderByDescending(r => r.Round).First().TeamName,
+                TotalPoints = g.Sum(r => r.Points)
             })
             .OrderByDescending(s => s.TotalPoints)
-            .ToListAsync();
-
-        if (standings.Count == 0)
-        {
-            return NotFound($"No race results found for season {season}");
-        }
+            .ToList();
 
         // Assign positions after sorting
         for (int i = 0; i < standings.Count; i++)
@@ -59,12 +72,14 @@ public class StandingsController : ControllerBase
             .GroupBy(rr => new
             {
                 rr.ConstructorId,
-                rr.Constructor.TeamName
+                rr.Constructor.TeamName,
+                rr.Constructor.Nationality
             })
             .Select(g => new ConstructorStandingDto
             {
                 ConstructorId = g.Key.ConstructorId,
                 TeamName = g.Key.TeamName,
+                Nationality = g.Key.Nationality,
                 TotalPoints = g.Sum(rr => rr.Points)
             })
             .OrderByDescending(s => s.TotalPoints)

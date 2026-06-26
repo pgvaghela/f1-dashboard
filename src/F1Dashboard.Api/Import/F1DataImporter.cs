@@ -39,7 +39,8 @@ public class F1DataImporter
         int Constructors,
         int Drivers,
         int Races,
-        int RaceResults);
+        int RaceResults,
+        int QualifyingResults);
 
     public async Task<ImportSummary> ImportSeasonsAsync(
         IEnumerable<int> seasons,
@@ -54,6 +55,8 @@ public class F1DataImporter
         var drivers = new Dictionary<string, Driver>();
         var races = new Dictionary<string, Race>();
         var results = new List<RaceResult>();
+        // Keyed by "season-round:driverId" so a driver's qualifying row is unique per race.
+        var qualifying = new Dictionary<string, QualifyingResult>();
 
         // Side tables for computing gap-to-winner once all pages are in.
         var resultMillis = new List<(RaceResult Result, long Millis)>();
@@ -64,6 +67,11 @@ public class F1DataImporter
             await ImportSeasonAsync(
                 season, circuits, constructors, drivers, races, results,
                 resultMillis, winnerMillis, ct);
+
+            // Pull qualifying so the predictor can use pace-vs-pole, the strongest
+            // current-form signal. Reuses the same driver/constructor/race entities.
+            await ImportQualifyingAsync(
+                season, circuits, constructors, drivers, races, qualifying, ct);
 
             // Also pull the full calendar so races that haven't been run yet
             // (no results) still exist — the predictor uses them for upcoming races.
@@ -82,11 +90,11 @@ public class F1DataImporter
 
         await ReplaceDataAsync(
             circuits.Values, constructors.Values, drivers.Values,
-            races.Values, results, ct);
+            races.Values, results, qualifying.Values, ct);
 
         var summary = new ImportSummary(
             seasonList, circuits.Count, constructors.Count, drivers.Count,
-            races.Count, results.Count);
+            races.Count, results.Count, qualifying.Count);
         _logger.LogInformation(
             "Imported F1 data for seasons {Seasons}: {Races} races, {Results} results",
             string.Join(", ", seasonList), summary.Races, summary.RaceResults);
@@ -183,6 +191,84 @@ public class F1DataImporter
     }
 
     /// <summary>
+    /// Pulls qualifying results for a season and builds one <see cref="QualifyingResult"/>
+    /// per driver per race, reusing the race/driver/constructor entities already created
+    /// from the results feed (or creating them if qualifying-only).
+    /// </summary>
+    private async Task ImportQualifyingAsync(
+        int season,
+        Dictionary<string, Circuit> circuits,
+        Dictionary<string, Constructor> constructors,
+        Dictionary<string, Driver> drivers,
+        Dictionary<string, Race> races,
+        Dictionary<string, QualifyingResult> qualifying,
+        CancellationToken ct)
+    {
+        var offset = 0;
+        int total;
+        do
+        {
+            var url = $"{BaseUrl}/{season}/qualifying.json?limit={PageSize}&offset={offset}";
+            var response = await _http.GetFromJsonAsync<ErgastResponse>(url, JsonOptions, ct)
+                ?? throw new InvalidOperationException($"Empty response from {url}");
+            total = ParseInt(response.MRData.Total);
+
+            foreach (var race in response.MRData.RaceTable.Races)
+            {
+                var circuit = GetOrAdd(circuits, race.Circuit.CircuitId, () => new Circuit
+                {
+                    CircuitName = race.Circuit.CircuitName,
+                    Country = race.Circuit.Location.Country,
+                    Locality = race.Circuit.Location.Locality
+                });
+
+                var raceKey = RaceKey(ParseInt(race.Season), ParseInt(race.Round));
+                var raceEntity = GetOrAdd(races, raceKey, () => new Race
+                {
+                    Season = ParseInt(race.Season),
+                    Round = ParseInt(race.Round),
+                    Name = race.RaceName,
+                    Date = ParseDate(race.Date),
+                    Circuit = circuit
+                });
+
+                foreach (var q in race.QualifyingResults)
+                {
+                    var constructor = GetOrAdd(constructors, q.Constructor.ConstructorId, () => new Constructor
+                    {
+                        TeamName = q.Constructor.Name,
+                        Nationality = q.Constructor.Nationality
+                    });
+
+                    var driver = GetOrAdd(drivers, q.Driver.DriverId, () => new Driver
+                    {
+                        FirstName = q.Driver.GivenName,
+                        LastName = q.Driver.FamilyName,
+                        DateOfBirth = ParseDate(q.Driver.DateOfBirth),
+                        Code = string.IsNullOrWhiteSpace(q.Driver.Code) ? q.Driver.DriverId : q.Driver.Code,
+                        Nationality = q.Driver.Nationality
+                    });
+
+                    var qualifyingKey = $"{raceKey}:{q.Driver.DriverId}";
+                    GetOrAdd(qualifying, qualifyingKey, () => new QualifyingResult
+                    {
+                        Race = raceEntity,
+                        Driver = driver,
+                        Constructor = constructor,
+                        Position = ParseIntOrNull(q.Position),
+                        Q1Time = ParseLapTimeSeconds(q.Q1),
+                        Q2Time = ParseLapTimeSeconds(q.Q2),
+                        Q3Time = ParseLapTimeSeconds(q.Q3)
+                    });
+                }
+            }
+
+            offset += PageSize;
+            await Task.Delay(250, ct); // be polite to the public API
+        } while (offset < total);
+    }
+
+    /// <summary>
     /// Adds any scheduled races for the season that the results feed didn't already
     /// create (i.e. upcoming rounds with no results yet). Existing races are left as-is.
     /// </summary>
@@ -228,6 +314,7 @@ public class F1DataImporter
         IEnumerable<Driver> drivers,
         IEnumerable<Race> races,
         IEnumerable<RaceResult> results,
+        IEnumerable<QualifyingResult> qualifying,
         CancellationToken ct)
     {
         await using var tx = await _context.Database.BeginTransactionAsync(ct);
@@ -248,6 +335,7 @@ public class F1DataImporter
         _context.Drivers.AddRange(drivers);
         _context.Races.AddRange(races);
         _context.RaceResults.AddRange(results);
+        _context.QualifyingResults.AddRange(qualifying);
 
         await _context.SaveChangesAsync(ct);
         await tx.CommitAsync(ct);

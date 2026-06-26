@@ -28,6 +28,7 @@ public class ErgastRace
     public string Date { get; set; } = string.Empty;
     public ErgastCircuit Circuit { get; set; } = new();
     public List<ErgastResult> Results { get; set; } = new();
+    public List<ErgastQualifyingResult> QualifyingResults { get; set; } = new();
 }
 
 public class ErgastCircuit
@@ -72,6 +73,16 @@ public class ErgastConstructor
     public string ConstructorId { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
     public string Nationality { get; set; } = string.Empty;
+}
+
+public class ErgastQualifyingResult
+{
+    public string Position { get; set; } = string.Empty;
+    public ErgastDriver Driver { get; set; } = new();
+    public ErgastConstructor Constructor { get; set; } = new();
+    public string? Q1 { get; set; }
+    public string? Q2 { get; set; }
+    public string? Q3 { get; set; }
 }
 
 public class ErgastTime
