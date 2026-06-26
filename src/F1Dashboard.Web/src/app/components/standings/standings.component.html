@@ -3,7 +3,7 @@
   <p class="page__subtitle">Championship points by season.</p>
 
   <div class="controls">
-    <div class="toggle" role="group" aria-label="Standings type">
+    <div class="toggle liquid-glass" role="group" aria-label="Standings type">
       <button
         type="button"
         class="toggle__btn"
@@ -27,7 +27,7 @@
     <label class="season">
       <span class="season__label">Season</span>
       <select
-        class="season__select"
+        class="season__select liquid-glass"
         [value]="selectedSeason"
         (change)="onSeasonChange($any($event.target).value)"
       >
@@ -46,24 +46,130 @@
     <p class="state state--error">{{ error }}</p>
   }
 
+  @if (!loading && !error && leader) {
+    <div class="leader hud-panel liquid-glass" [style.--team-color]="leader.teamColor" reveal>
+      <div class="leader__media">
+        @if (type === 'drivers' && leader.headshotUrl && !failedImages.has(leader.headshotUrl)) {
+          <img class="leader__photo" [src]="leader.headshotUrl" [alt]="leader.name"
+               (error)="onImageError(leader.headshotUrl)" />
+        } @else if (type === 'constructors' && leader.logoUrl && !failedImages.has(leader.logoUrl)) {
+          <img class="leader__logo" [src]="leader.logoUrl" [alt]="leader.teamName"
+               (error)="onImageError(leader.logoUrl)" />
+        } @else {
+          <span class="leader__badge">{{ leader.teamAbbr || leader.code }}</span>
+        }
+      </div>
+      <div class="leader__info">
+        <span class="speed-eyebrow">{{ type === 'drivers' ? 'Championship leader' : 'Leading constructor' }}</span>
+        <div class="leader__name">{{ leader.name }}</div>
+        <div class="leader__meta">
+          <span class="podium-chip podium-chip--p1">P1</span>
+          @if (type === 'drivers') {
+            <span class="leader__team">{{ leader.teamName }}</span>
+          } @else {
+            <span class="leader__team">{{ leader.nationality }}</span>
+          }
+        </div>
+      </div>
+      <div class="leader__points">
+        <span class="count leader__pts" [countUp]="leader.totalPoints"
+              [countUpDecimals]="pointsDecimals(leader.totalPoints)"></span>
+        <span class="leader__pts-label">PTS</span>
+      </div>
+    </div>
+  }
+
   @if (!loading && !error) {
-    <table class="data-table">
+    <div class="data-shell hud-panel liquid-glass" reveal>
+    <table class="data-table standings-table">
       <thead>
-        <tr>
-          <th class="num">Pos</th>
-          <th>{{ type === 'drivers' ? 'Driver' : 'Constructor' }}</th>
-          <th class="num">Points</th>
-        </tr>
+        @if (type === 'drivers') {
+          <tr>
+            <th class="num">Pos</th>
+            <th>Driver</th>
+            <th>Nationality</th>
+            <th>Team</th>
+            <th class="num">Pts</th>
+          </tr>
+        } @else {
+          <tr>
+            <th class="num">Pos</th>
+            <th>Constructor</th>
+            <th>Nationality</th>
+            <th class="num">Pts</th>
+          </tr>
+        }
       </thead>
       <tbody>
-        @for (row of rows; track row.position) {
-          <tr>
-            <td class="num">{{ row.position }}</td>
-            <td>{{ row.name }}</td>
-            <td class="num">{{ row.totalPoints }}</td>
+        @for (row of rows; track row.position; let i = $index) {
+          <tr [style.--team-color]="row.teamColor">
+            <td class="num">
+              <span class="podium-chip"
+                    [class.podium-chip--p1]="row.position === 1"
+                    [class.podium-chip--p2]="row.position === 2"
+                    [class.podium-chip--p3]="row.position === 3">{{ row.position }}</span>
+            </td>
+
+            @if (type === 'drivers') {
+              <td>
+                <span class="entity">
+                  <span class="avatar avatar--photo">
+                    @if (row.headshotUrl && !failedImages.has(row.headshotUrl)) {
+                      <img class="avatar__img" [src]="row.headshotUrl" [alt]="row.name"
+                           loading="lazy" (error)="onImageError(row.headshotUrl)" />
+                    } @else if (row.flagUrl) {
+                      <img class="avatar__img" [src]="row.flagUrl" [alt]="row.nationality" loading="lazy" />
+                    } @else {
+                      <span class="avatar__code">{{ row.code }}</span>
+                    }
+                  </span>
+                  <span class="entity__name">{{ row.name }}</span>
+                </span>
+              </td>
+              <td>
+                <span class="nat">
+                  @if (row.flagUrl) {
+                    <img class="nat__flag" [src]="row.flagUrl" [alt]="row.nationality" loading="lazy" />
+                  }
+                  <span>{{ row.nationality }}</span>
+                </span>
+              </td>
+              <td>
+                <span class="team">
+                  <span class="team__badge">{{ row.teamAbbr }}</span>
+                  <span>{{ row.teamName }}</span>
+                </span>
+              </td>
+            } @else {
+              <td>
+                <span class="entity">
+                  <span class="logo">
+                    @if (row.logoUrl && !failedImages.has(row.logoUrl)) {
+                      <img class="logo__img" [src]="row.logoUrl" [alt]="row.teamName"
+                           loading="lazy" (error)="onImageError(row.logoUrl)" />
+                    } @else {
+                      <span class="team__badge team__badge--lg">{{ row.teamAbbr }}</span>
+                    }
+                  </span>
+                  <span class="entity__name">{{ row.name }}</span>
+                </span>
+              </td>
+              <td>
+                <span class="nat">
+                  @if (row.flagUrl) {
+                    <img class="nat__flag" [src]="row.flagUrl" [alt]="row.nationality" loading="lazy" />
+                  }
+                  <span>{{ row.nationality }}</span>
+                </span>
+              </td>
+            }
+
+            <td class="num count" [countUp]="row.totalPoints"
+                [countUpDecimals]="pointsDecimals(row.totalPoints)"></td>
           </tr>
         }
       </tbody>
     </table>
+    </div>
   }
 </div>
