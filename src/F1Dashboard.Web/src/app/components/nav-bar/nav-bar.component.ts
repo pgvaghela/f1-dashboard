@@ -11,10 +11,17 @@ import { filter } from 'rxjs';
 export class NavBarComponent implements OnInit {
   private router = inject(Router);
 
-  /** True only on the landing page, where the bar starts transparent over the hero. */
   isHome = false;
-  /** True once the user has scrolled past a small threshold. */
   scrolled = false;
+  menuOpen = false;
+
+  readonly navLinks = [
+    { label: 'Drivers', href: '/drivers' },
+    { label: 'Constructors', href: '/constructors' },
+    { label: 'Standings', href: '/standings' },
+    { label: 'Predictor', href: '/predictor' },
+    { label: 'Lap Data', href: '/lap-data' }
+  ];
 
   ngOnInit(): void {
     this.isHome = this.router.url === '/';
@@ -22,11 +29,20 @@ export class NavBarComponent implements OnInit {
       .pipe(filter((e): e is NavigationEnd => e instanceof NavigationEnd))
       .subscribe((e) => {
         this.isHome = e.urlAfterRedirects === '/';
+        this.menuOpen = false;
       });
   }
 
   @HostListener('window:scroll')
   onScroll(): void {
     this.scrolled = window.scrollY > 12;
+  }
+
+  toggleMenu(): void {
+    this.menuOpen = !this.menuOpen;
+  }
+
+  closeMenu(): void {
+    this.menuOpen = false;
   }
 }

@@ -4,21 +4,40 @@
   [class.nav--solid]="!isHome || scrolled"
 >
   <nav class="nav__inner container" aria-label="Primary">
-    <a class="nav__brand" routerLink="/">F1 Dashboard</a>
+    <a class="nav__brand" routerLink="/" (click)="closeMenu()">F1 Dashboard</a>
 
     <ul class="nav__links">
-      <li>
-        <a routerLink="/drivers" routerLinkActive="nav__link--active">Drivers</a>
-      </li>
-      <li>
-        <a routerLink="/constructors" routerLinkActive="nav__link--active">Constructors</a>
-      </li>
-      <li>
-        <a routerLink="/standings" routerLinkActive="nav__link--active">Standings</a>
-      </li>
-      <li>
-        <a routerLink="/predictor" routerLinkActive="nav__link--active">Predictor</a>
-      </li>
+      @for (link of navLinks; track link.href) {
+        <li>
+          <a [routerLink]="link.href" routerLinkActive="nav__link--active">{{ link.label }}</a>
+        </li>
+      }
     </ul>
+
+    <button
+      class="nav__menu-btn liquid-glass"
+      [class.nav__menu-btn--open]="menuOpen"
+      (click)="toggleMenu()"
+      [attr.aria-expanded]="menuOpen"
+      aria-label="Toggle menu"
+    >
+      <span></span><span></span><span></span>
+    </button>
   </nav>
+
+  <div class="nav__mobile-menu" [class.nav__mobile-menu--open]="menuOpen">
+    <div class="nav__mobile-menu__content container liquid-glass">
+      @for (link of navLinks; track link.href; let i = $index) {
+        <a
+          class="nav__mobile-link"
+          [style.transition-delay.ms]="40 + (i * 35)"
+          [routerLink]="link.href"
+          routerLinkActive="nav__mobile-link--active"
+          (click)="closeMenu()"
+        >
+          {{ link.label }}
+        </a>
+      }
+    </div>
+  </div>
 </header>
