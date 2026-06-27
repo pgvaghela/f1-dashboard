@@ -28,13 +28,32 @@ public class RaceWinnerModel
     /// <summary>Minimum prior examples before we trust a trained model over the grid-based fallback.</summary>
     private const int MinTrainingRows = 150;
 
+    /// <summary>
+    /// Recency half-life in days for training weights. A race this old counts half as much
+    /// as today's; ~2 half-lives back counts a quarter. Tuned so the current season dominates.
+    /// </summary>
+    private const double RecencyHalfLifeDays = 210.0;
+
+    /// <summary>Driver win-rate is measured over this many most-recent prior races (not all-time).</summary>
+    private const int WinRateWindow = 20;
+
+    /// <summary>Circuit history older than this many years is ignored (cars change too much).</summary>
+    private const int CircuitHistoryYears = 2;
+
+    /// <summary>Fallback qualifying gap-to-pole (%) when a driver has no qualifying time for a race.</summary>
+    private const float NeutralGapPercent = 1.5f;
+
     private readonly IServiceScopeFactory _scopeFactory;
+    private readonly KalshiOddsService _kalshi;
     private readonly ILogger<RaceWinnerModel> _logger;
     private readonly MLContext _ml = new(seed: 1);
     private readonly SemaphoreSlim _gate = new(1, 1);
 
     private bool _ready;
     private double _accuracy;
+
+    // The next race to be run (earliest-dated race without results); the one Kalshi covers.
+    private int? _nextRaceId;
 
     // Model trained without grid/pole, used to score races that haven't run yet.
     private ITransformer? _futureModel;
@@ -46,12 +65,19 @@ public class RaceWinnerModel
     private Dictionary<int, RaceInfo> _raceById = new();
     private Dictionary<int, int> _raceCircuit = new();
 
+    // Qualifying pace as a percentage gap to pole, per (race, driver).
+    private Dictionary<(int RaceId, int DriverId), float> _qualGap = new();
+
+    // The most recent result date in the dataset; the reference point for recency weighting.
+    private DateOnly _maxResultDate = DateOnly.FromDateTime(DateTime.UtcNow);
+
     // Precomputed prediction per race id (completed + upcoming).
     private Dictionary<int, RacePredictionResult> _predictionsByRace = new();
 
-    public RaceWinnerModel(IServiceScopeFactory scopeFactory, ILogger<RaceWinnerModel> logger)
+    public RaceWinnerModel(IServiceScopeFactory scopeFactory, KalshiOddsService kalshi, ILogger<RaceWinnerModel> logger)
     {
         _scopeFactory = scopeFactory;
+        _kalshi = kalshi;
         _logger = logger;
     }
 
@@ -94,8 +120,21 @@ public class RaceWinnerModel
     {
         await EnsureReadyAsync();
         var result = _predictionsByRace.GetValueOrDefault(raceId);
+        if (result is null)
+        {
+            return null;
+        }
+
         // Stamp the (loop-wide) accuracy, which is only known after every race is built.
-        return result is null ? null : result with { ModelAccuracy = _accuracy };
+        result = result with { ModelAccuracy = _accuracy };
+
+        // For the next race, blend in live prediction-market odds (current-form, news-aware).
+        if (result.IsUpcoming && raceId == _nextRaceId)
+        {
+            result = await BlendWithMarketAsync(result);
+        }
+
+        return result;
     }
 
     /// <summary>Forces a fresh reload of the data and retraining, returning a summary.</summary>
@@ -142,6 +181,15 @@ public class RaceWinnerModel
         await LoadSnapshotAsync();
         BuildWalkForwardPredictions();
         BuildUpcomingPredictions();
+
+        // The next race to run = earliest-dated race that has no results yet.
+        _nextRaceId = _raceById.Values
+            .Where(r => !r.HasResult)
+            .OrderBy(r => r.Date)
+            .ThenBy(r => r.Round)
+            .Select(r => (int?)r.RaceId)
+            .FirstOrDefault();
+
         _ready = true;
     }
 
@@ -163,6 +211,10 @@ public class RaceWinnerModel
             .Select(r => new { r.Id, r.Season, r.Round, r.Date, r.CircuitId, r.Name, Circuit = r.Circuit.CircuitName })
             .ToListAsync();
 
+        _maxResultDate = _results.Count == 0
+            ? DateOnly.FromDateTime(DateTime.UtcNow)
+            : _results.Max(r => r.Date);
+
         var racesWithResults = _results.Select(r => r.RaceId).ToHashSet();
         _raceById = raceRows.ToDictionary(
             r => r.Id,
@@ -176,6 +228,44 @@ public class RaceWinnerModel
         _byConstructor = _results
             .GroupBy(r => r.ConstructorId)
             .ToDictionary(g => g.Key, g => g.OrderBy(r => r.Date).ToList());
+
+        await LoadQualifyingGapsAsync(db);
+    }
+
+    /// <summary>
+    /// Computes each driver's qualifying pace as a percentage gap to the session's fastest
+    /// lap, per race. A driver's time is their best of Q3/Q2/Q1; pole is the field minimum.
+    /// </summary>
+    private async Task LoadQualifyingGapsAsync(F1DbContext db)
+    {
+        var qualRows = await db.QualifyingResults
+            .Select(q => new { q.RaceId, q.DriverId, q.Q1Time, q.Q2Time, q.Q3Time })
+            .ToListAsync();
+
+        _qualGap = new Dictionary<(int, int), float>();
+        foreach (var byRace in qualRows.GroupBy(q => q.RaceId))
+        {
+            var best = byRace
+                .Select(q => new { q.DriverId, Time = BestQualTime(q.Q1Time, q.Q2Time, q.Q3Time) })
+                .Where(x => x.Time is > 0m)
+                .ToList();
+            if (best.Count == 0)
+            {
+                continue;
+            }
+
+            var pole = best.Min(x => x.Time!.Value);
+            foreach (var x in best)
+            {
+                _qualGap[(byRace.Key, x.DriverId)] = (float)((x.Time!.Value - pole) / pole * 100m);
+            }
+        }
+    }
+
+    private static decimal? BestQualTime(decimal? q1, decimal? q2, decimal? q3)
+    {
+        var times = new[] { q1, q2, q3 }.Where(t => t is > 0m).Select(t => t!.Value).ToList();
+        return times.Count == 0 ? null : times.Min();
     }
 
     /// <summary>
@@ -196,8 +286,15 @@ public class RaceWinnerModel
         }
 
         // Compute each result's leak-free features once (each row only sees its own past).
+        // Each row is also given a recency weight relative to the latest race in the dataset.
         var featureByResult = _results.ToDictionary(
-            r => r, r => BuildFeatures(r.DriverId, r.ConstructorId, r.CircuitId, r.Season, r.Date, r.Grid, r.Finish == 1));
+            r => r,
+            r =>
+            {
+                var features = BuildFeatures(r.RaceId, r.DriverId, r.ConstructorId, r.CircuitId, r.Season, r.Date, r.Grid, r.Finish == 1);
+                features.Weight = RecencyWeight(r.Date);
+                return features;
+            });
 
         // The no-grid model learns from every completed result (grid/pole withheld).
         if (featureByResult.Count >= MinTrainingRows)
@@ -289,7 +386,7 @@ public class RaceWinnerModel
 
             var circuitId = _raceCircuit.GetValueOrDefault(race.RaceId);
             var features = field
-                .Select(f => BuildFeatures(f.DriverId, f.ConstructorId, circuitId, race.Season, race.Date, grid: 0, won: false))
+                .Select(f => BuildFeatures(race.RaceId, f.DriverId, f.ConstructorId, circuitId, race.Season, race.Date, grid: 0, won: false))
                 .ToList();
             var probabilities = ScoreField(_futureModel, features);
 
@@ -312,6 +409,45 @@ public class RaceWinnerModel
         _logger.LogInformation(
             "RaceWinnerModel built {Count} upcoming-race predictions.",
             _raceById.Values.Count(r => !r.HasResult));
+    }
+
+    /// <summary>
+    /// Blends the model's win probabilities with Kalshi's market-implied odds for the next race:
+    /// <c>final = (1 − α)·model + α·market</c>, matched by driver code, then renormalized. Returns
+    /// the model-only result unchanged if the market is unavailable.
+    /// </summary>
+    private async Task<RacePredictionResult> BlendWithMarketAsync(RacePredictionResult result)
+    {
+        var odds = await _kalshi.GetNextRaceOddsAsync();
+        if (odds is null || odds.WinProbabilityByCode.Count == 0)
+        {
+            return result;
+        }
+
+        var alpha = _kalshi.BlendWeight;
+        var blended = result.Drivers
+            .Select(d =>
+            {
+                var market = odds.WinProbabilityByCode.GetValueOrDefault(d.Code.ToUpperInvariant(), 0);
+                var score = (1 - alpha) * d.WinProbability + alpha * market;
+                return (Driver: d, Score: score);
+            })
+            .ToList();
+
+        var total = blended.Sum(x => x.Score);
+        if (total <= 0)
+        {
+            return result;
+        }
+
+        var ranked = blended
+            .Select(x => x.Driver with { WinProbability = x.Score / total, IsPredictedWinner = false })
+            .OrderByDescending(d => d.WinProbability)
+            .Select((d, i) => d with { IsPredictedWinner = i == 0 })
+            .ToList();
+
+        var basis = $"model {1 - alpha:P0} + Kalshi market {alpha:P0} ({odds.RaceTitle})";
+        return result with { Drivers = ranked, Basis = basis };
     }
 
     /// <summary>The current driver lineup for a season: each driver with their most recent team.</summary>
@@ -365,11 +501,13 @@ public class RaceWinnerModel
         {
             featureColumns.Add(nameof(RaceFeatureRow.GridPosition));
             featureColumns.Add(nameof(RaceFeatureRow.IsPole));
+            featureColumns.Add(nameof(RaceFeatureRow.QualifyingGapToPole));
         }
         featureColumns.Add(nameof(RaceFeatureRow.DriverRecentFinish));
         featureColumns.Add(nameof(RaceFeatureRow.DriverWinRate));
         featureColumns.Add(nameof(RaceFeatureRow.DriverSeasonPointsPerRace));
         featureColumns.Add(nameof(RaceFeatureRow.ConstructorRecentFinish));
+        featureColumns.Add(nameof(RaceFeatureRow.ConstructorSeasonPointsPerRace));
         featureColumns.Add(nameof(RaceFeatureRow.DriverCircuitAvgFinish));
 
         var data = _ml.Data.LoadFromEnumerable(trainingRows);
@@ -377,6 +515,7 @@ public class RaceWinnerModel
             .Append(_ml.BinaryClassification.Trainers.FastTree(
                 labelColumnName: nameof(RaceFeatureRow.Won),
                 featureColumnName: "Features",
+                exampleWeightColumnName: nameof(RaceFeatureRow.Weight),
                 numberOfLeaves: 16,
                 numberOfTrees: 60,
                 minimumExampleCountPerLeaf: 10,
@@ -410,7 +549,7 @@ public class RaceWinnerModel
     /// ignored by the no-grid model used for upcoming races.
     /// </summary>
     private RaceFeatureRow BuildFeatures(
-        int driverId, int constructorId, int circuitId, int season, DateOnly before, int grid, bool won)
+        int raceId, int driverId, int constructorId, int circuitId, int season, DateOnly before, int grid, bool won)
     {
         var driverHistory = _byDriver.GetValueOrDefault(driverId);
         var constructorHistory = _byConstructor.GetValueOrDefault(constructorId);
@@ -419,10 +558,12 @@ public class RaceWinnerModel
         {
             GridPosition = grid == 0 ? 21f : grid,
             IsPole = grid == 1 ? 1f : 0f,
+            QualifyingGapToPole = _qualGap.GetValueOrDefault((raceId, driverId), NeutralGapPercent),
             DriverRecentFinish = RecentFinish(driverHistory, before),
             DriverWinRate = WinRate(driverHistory, before),
             DriverSeasonPointsPerRace = SeasonPointsPerRace(driverHistory, season, before),
             ConstructorRecentFinish = RecentFinish(constructorHistory, before),
+            ConstructorSeasonPointsPerRace = SeasonPointsPerRace(constructorHistory, season, before),
             DriverCircuitAvgFinish = CircuitAvgFinish(driverHistory, circuitId, before),
             Won = won
         };
@@ -448,7 +589,9 @@ public class RaceWinnerModel
             return 0f;
         }
 
-        var prior = history.Where(r => r.Date < before).ToList();
+        // Rolling window: a driver's win rate over their most recent races, not their whole career,
+        // so a fast car two seasons ago doesn't permanently inflate the signal.
+        var prior = history.Where(r => r.Date < before).TakeLast(WinRateWindow).ToList();
         return prior.Count == 0 ? 0f : (float)prior.Count(r => r.Finish == 1) / prior.Count;
     }
 
@@ -470,7 +613,22 @@ public class RaceWinnerModel
             return NeutralFinish;
         }
 
-        var atCircuit = history.Where(r => r.CircuitId == circuitId && r.Date < before).ToList();
+        // Only count visits within the last couple of seasons; older circuit form reflects a
+        // different car and is misleading. Fall back to overall recent form when there's nothing.
+        var cutoff = before.AddYears(-CircuitHistoryYears);
+        var atCircuit = history
+            .Where(r => r.CircuitId == circuitId && r.Date < before && r.Date >= cutoff)
+            .ToList();
         return atCircuit.Count == 0 ? RecentFinish(history, before) : atCircuit.Average(FinishOf);
+    }
+
+    /// <summary>
+    /// Exponential time-decay weight for a training row, relative to the latest race in the
+    /// dataset. Half-life is <see cref="RecencyHalfLifeDays"/> days, so recent races dominate.
+    /// </summary>
+    private float RecencyWeight(DateOnly date)
+    {
+        var ageDays = Math.Max(0, _maxResultDate.DayNumber - date.DayNumber);
+        return (float)Math.Pow(0.5, ageDays / RecencyHalfLifeDays);
     }
 }

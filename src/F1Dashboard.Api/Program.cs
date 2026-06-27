@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using F1Dashboard.Api.Data;
 using F1Dashboard.Api.Import;
 using F1Dashboard.Api.Ml;
+using F1Dashboard.Api.News;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -40,6 +41,14 @@ builder.Services.AddDbContext<F1DbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("F1Database"))
            .UseSnakeCaseNamingConvention());
 
+// Fetches live Kalshi prediction-market odds for the next race (singleton, cached).
+builder.Services.AddHttpClient("kalshi", client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(15);
+    client.DefaultRequestHeaders.UserAgent.ParseAdd("F1Dashboard/1.0");
+});
+builder.Services.AddSingleton<KalshiOddsService>();
+
 // Trains and caches the ML.NET race-winner model (singleton; trains lazily on
 // first prediction request from the imported data).
 builder.Services.AddSingleton<RaceWinnerModel>();
@@ -50,6 +59,12 @@ builder.Services.AddHttpClient<F1DataImporter>(client =>
     client.Timeout = TimeSpan.FromSeconds(30);
     client.DefaultRequestHeaders.UserAgent.ParseAdd("F1Dashboard/1.0");
 });
+builder.Services.AddHttpClient<HeadlinesService>(client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(15);
+    client.DefaultRequestHeaders.UserAgent.ParseAdd("F1Dashboard/1.0");
+});
+builder.Services.AddSingleton<TelemetryImporter>();
 
 var app = builder.Build();
 
