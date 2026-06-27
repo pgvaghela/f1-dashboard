@@ -1,11 +1,13 @@
 import { Component, OnInit, inject } from '@angular/core';
-import { DecimalPipe, PercentPipe } from '@angular/common';
+import { PercentPipe } from '@angular/common';
 import { PredictionService } from '../../services/prediction.service';
 import { DriverPrediction, PredictableRace, RacePredictionResult } from '../../models/prediction';
+import { RevealDirective } from '../../shared/reveal.directive';
+import { CountUpDirective } from '../../shared/count-up.directive';
 
 @Component({
   selector: 'app-predictor',
-  imports: [PercentPipe, DecimalPipe],
+  imports: [PercentPipe, RevealDirective, CountUpDirective],
   templateUrl: './predictor.component.html',
   styleUrl: './predictor.component.css'
 })

@@ -9,8 +9,9 @@
     </div>
 
     @if (result) {
-      <div class="accuracy" title="Share of races whose actual winner was the model's top pick (walk-forward).">
-        <span class="accuracy__value">{{ result.modelAccuracy | percent:'1.0-0' }}</span>
+      <div class="accuracy hud-panel liquid-glass" title="Share of races whose actual winner was the model's top pick (walk-forward).">
+        <span class="accuracy__value count" [countUp]="result.modelAccuracy * 100"
+              [countUpDecimals]="0" countUpSuffix="%"></span>
         <span class="accuracy__label">winner called</span>
       </div>
     }
@@ -20,7 +21,7 @@
     <label class="season">
       <span class="season__label">Season</span>
       <select
-        class="season__select"
+        class="season__select liquid-glass"
         [value]="selectedSeason"
         (change)="onSeasonChange($any($event.target).value)"
       >
@@ -33,7 +34,7 @@
     <label class="season">
       <span class="season__label">Grand Prix</span>
       <select
-        class="season__select season__select--wide"
+        class="season__select season__select--wide liquid-glass"
         [value]="selectedRaceId"
         [disabled]="loadingRaces || races.length === 0"
         (change)="onRaceChange($any($event.target).value)"
@@ -57,7 +58,7 @@
 
   @if (result && !loadingPrediction && !error) {
     <!-- Predicted podium: top 3 cars crossing the finish line -->
-    <div class="podium" [class.podium--hit]="hasResult && calledIt" [class.podium--miss]="hasResult && !calledIt">
+    <div class="podium hud-panel liquid-glass" [class.podium--hit]="hasResult && calledIt" [class.podium--miss]="hasResult && !calledIt" reveal>
       <div class="podium__top">
         <span class="podium__tag">{{ isUpcoming ? 'Projected podium' : 'Predicted podium' }}</span>
         @if (isUpcoming) {
@@ -110,7 +111,8 @@
                   <span class="lane__code">{{ driver.code }}</span>
                   <span class="lane__team">{{ driver.constructorName }}</span>
                 </div>
-                <span class="lane__prob">{{ driver.winProbability | percent:'1.1-1' }}</span>
+                <span class="lane__prob count" [countUp]="driver.winProbability * 100"
+                      [countUpDecimals]="1" countUpSuffix="%"></span>
                 @if (driver.isActualWinner) {
                   <span class="badge badge--winner">WON</span>
                 }
@@ -133,7 +135,7 @@
     </div>
 
     <!-- Full field, ranked -->
-    <div class="ranking">
+    <div class="ranking" reveal>
       @for (driver of result.drivers; track driver.driverId; let i = $index) {
         <div
           class="row"
@@ -149,11 +151,13 @@
           </div>
 
           <div class="row__bar">
-            <div class="row__bar-fill" [style.width.%]="barWidth(driver)"></div>
+            <div class="row__bar-fill" [style.width.%]="barWidth(driver)"
+                 [style.--bar]="teamColor(driver.constructorName)"></div>
           </div>
 
           <span class="row__grid">{{ driver.grid ? 'P' + driver.grid : '—' }}</span>
-          <span class="row__prob">{{ driver.winProbability * 100 | number:'1.1-1' }}%</span>
+          <span class="row__prob count" [countUp]="driver.winProbability * 100"
+                [countUpDecimals]="1" countUpSuffix="%"></span>
 
           <span class="row__result">
             @if (driver.isActualWinner) {
