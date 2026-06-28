@@ -1,2 +1,17 @@
-<app-nav-bar />
-<router-outlet />
+@if (!isHomeRoute) {
+  <!-- Ambient cinematic backdrop: drifting team-neutral glow behind inner pages. -->
+  <div class="fx-bg" aria-hidden="true"></div>
+  <app-nav-bar />
+}
+
+<main class="app-main">
+  <router-outlet />
+</main>
+
+@if (!isHomeRoute) {
+  <!-- Cursor-follow spotlight + foreground film texture + edge vignette
+       (these layers never intercept pointer events). -->
+  <div class="fx-spotlight" aria-hidden="true"></div>
+  <div class="fx-vignette" aria-hidden="true"></div>
+  <div class="fx-grain" aria-hidden="true"></div>
+}
