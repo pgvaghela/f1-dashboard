@@ -74,7 +74,9 @@ if (!string.IsNullOrWhiteSpace(app.Configuration.GetConnectionString("F1Database
 {
     using var scope = app.Services.CreateScope();
     var db = scope.ServiceProvider.GetRequiredService<F1DbContext>();
+    var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
     db.Database.EnsureCreated();
+    await TelemetrySchemaBootstrap.EnsureAsync(db, logger);
 }
 
 // Configure the HTTP request pipeline.
