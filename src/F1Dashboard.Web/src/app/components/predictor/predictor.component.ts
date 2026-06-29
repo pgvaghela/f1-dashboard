@@ -107,10 +107,10 @@ export class PredictorComponent implements OnInit {
 
     this.predictionService.getRaces(this.selectedSeason).subscribe({
       next: (races) => {
-        this.races = races;
+        this.races = this.orderRacesForDropdown(races);
         this.loadingRaces = false;
-        if (races.length > 0) {
-          this.selectedRaceId = this.defaultRaceId(races);
+        if (this.races.length > 0) {
+          this.selectedRaceId = this.defaultRaceId(this.races);
           this.loadPrediction();
         }
       },
@@ -122,10 +122,22 @@ export class PredictorComponent implements OnInit {
     });
   }
 
-  /** Default to the soonest upcoming race; otherwise the most recent completed one. */
+  /** Default to the first race in our display order. */
   private defaultRaceId(races: PredictableRace[]): number {
-    const upcoming = races.filter((r) => !r.hasResult).sort((a, b) => a.round - b.round);
-    return upcoming.length > 0 ? upcoming[0].raceId : races[0].raceId;
+    return races[0].raceId;
+  }
+
+  /**
+   * Keep rounds ascending, but for in-progress seasons start from the next
+   * upcoming round so the dropdown reads "next race -> round 22".
+   */
+  private orderRacesForDropdown(races: PredictableRace[]): PredictableRace[] {
+    const ordered = [...races].sort((a, b) => a.round - b.round);
+    const nextIdx = ordered.findIndex((race) => !race.hasResult);
+    if (nextIdx <= 0) {
+      return ordered;
+    }
+    return [...ordered.slice(nextIdx), ...ordered.slice(0, nextIdx)];
   }
 
   private loadPrediction(): void {
