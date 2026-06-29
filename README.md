@@ -4,19 +4,21 @@ A full-stack Formula 1 analytics dashboard — browse drivers, constructors, and
 
 ### ▶︎ Live demo: **[f1-dashboard-dusky-sigma.vercel.app](https://f1-dashboard-dusky-sigma.vercel.app)**
 
-> Hosted on free tiers — the API may take ~30–60s to wake on the first request if it has been idle.
+> Hosted on free tiers. A scheduled ping keeps the API warm, but the first request after a long idle period may still take ~30–60s to wake.
 
 ![F1 Dashboard landing page](docs/landing.jpg)
 
-![Race winner predictor grading a completed race against the actual podium](docs/predictor.png)
+![Championship standings](docs/standings.jpg)
 
-*Race winner predictor — for a completed race, the model's pick is graded against the real result (it called Qatar 2024 for Verstappen, who won).*
+*Driver and constructor standings — points include sprint races, and ties are broken by countback, so the table matches the official one exactly.*
 
-![Race winner predictor projecting an upcoming race before qualifying](docs/predictor-upcoming.png)
+![Race winner predictor](docs/predictor.jpg)
 
-*Upcoming races have no qualifying yet, so a separate grid-free model projects the podium from current form.*
+*Race winner predictor — an ML.NET model ranks each driver's win probability and projects the podium; for completed races it grades its pick against the real result.*
 
-![Standings page](docs/standings.png)
+![Lap telemetry replay](docs/lap-data.jpg)
+
+*Lap Data — replay any lap on an interactive track map with sector times and a speed trace, built from FastF1 telemetry.*
 
 ## Stack
 
@@ -42,7 +44,8 @@ flowchart LR
 - Cinematic landing page with scroll-scrubbed hero video and reduced-motion fallback poster.
 - Drivers and constructors listings.
 - Driver **and** constructor championship standings with a season selector (2023–2026) and a Drivers/Constructors toggle.
-- Standings computed server-side from race results (points aggregated per driver/constructor).
+- Standings computed server-side and matching the official table — points include **sprint races**, and ties are broken by **countback** (most wins, then 2nds, then 3rds…).
+- Data refreshes from upstream after each race weekend via a scheduled GitHub Action (`.github/workflows/refresh-data.yml`).
 - **Race winner predictor (ML.NET):** ranks every driver's win probability for any Grand Prix and animates the projected podium as team-colored cars crossing the finish line. For past races it reveals a ✓/✗ verdict against the actual winner; **upcoming races are predicted too** with a separate, grid-free model over the current lineup.
 - **Lap telemetry tab:** season/race/driver/lap selection, map replay, speed trace, sector splits, and side-by-side lap compare.
 - One-command race-result import plus telemetry ingestion tools.
@@ -72,6 +75,7 @@ Base URL (local dev): `http://localhost:5197`. Interactive docs (Scalar) at `/sc
 | GET | `/api/lap-data/races/{raceId}/drivers/{driverId}/laps` | Laps available for a driver |
 | GET | `/api/lap-data/laps/{lapId}` | Detailed telemetry for one lap |
 | POST | `/api/import/telemetry?seasons={csv}&force={bool}` | Start a background FastF1 telemetry ingest (Development / `AllowImport` only) |
+| GET | `/api/import/telemetry/status` | Telemetry row counts and whether an ingest is running (Development / `AllowImport` only) |
 
 ## Race winner predictor
 
