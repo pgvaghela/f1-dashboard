@@ -38,13 +38,51 @@ Keep this string for the next step.
    curl -X POST https://<your-render-url>/api/import
    ```
    (defaults to seasons 2023–2026; or `?seasons=2024,2025`). Takes ~30–60s.
-7. (Optional) Start telemetry ingest in background:
-   ```
-   curl -X POST https://<your-render-url>/api/import/telemetry?seasons=2024,2025,2026
-   ```
+7. (Optional) Seed lap telemetry — see [Seeding lap telemetry](#seeding-lap-telemetry) below.
 8. Set `AllowImport` back to `false` and redeploy (optional hardening).
 
 Verify: `https://<your-render-url>/api/drivers` returns JSON.
+
+## Seeding lap telemetry
+
+The **Lap Data** tab needs FastF1 telemetry in the `telemetry_*` tables. Those tables
+are created automatically on startup; they just start empty (`/api/lap-data/seasons`
+returns `[]`).
+
+> ⚠️ **Run the ingest externally, not on the hosted API.** FastF1 loads a whole
+> race's car + position data into memory (hundreds of MB per race), which OOM-kills
+> small instances (e.g. Render's 512 MB free tier) and can take the API down. The
+> hosted `POST /api/import/telemetry` endpoint is best-effort for local/large hosts;
+> on small tiers seed Neon directly from any machine with enough RAM:
+
+```bash
+cd tools
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+
+# Point the ingest at Neon. Parse these from ConnectionStrings__F1Database:
+#   Host=... -> PGHOST,  Database=... -> PGDATABASE,
+#   Username=... -> PGUSER,  Password=... -> PGPASSWORD
+export PGHOST=ep-xxx.region.aws.neon.tech
+export PGDATABASE=neondb
+export PGUSER=neondb_owner
+export PGPASSWORD=********
+export PGSSLMODE=require
+
+# One race (fast, low memory) — proves the pipeline end to end:
+python ingest_telemetry.py --season 2026 --round 1 --all-drivers
+
+# Or a whole season / range (sequential, one race at a time):
+python ingest_all_telemetry.py --seasons 2026
+```
+
+Verify the seed over HTTP (no DB access needed), with `AllowImport=true`:
+
+```bash
+curl https://<your-render-url>/api/import/telemetry/status
+#   -> {"ingestRunning":false,"seasons":[2026],"races":1,"drivers":20,"laps":...}
+curl https://<your-render-url>/api/lap-data/seasons   # -> [2026]
+```
 
 ## 3. Frontend — Vercel
 

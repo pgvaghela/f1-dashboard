@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using F1Dashboard.Api.Import;
 using F1Dashboard.Api.Ml;
 
@@ -80,16 +81,57 @@ public class ImportController : ControllerBase
             var started = _telemetryImporter.StartBatchImport(seasons, force);
             return Accepted(new
             {
-                message = "Telemetry ingest started in the background. This can take a while for full history (2018+).",
+                message = "Telemetry ingest started in the background. This can take a while for full history (2018+). " +
+                          "Note: FastF1 ingest is memory-heavy and may be killed on small hosts (e.g. 512 MB) — " +
+                          "for production prefer running the ingest externally against Neon (see DEPLOYMENT.md).",
                 started.ProcessId,
                 started.LogFile,
                 seasons = started.Seasons ?? "2018–current (all)",
                 started.Force
             });
         }
+        catch (TelemetryIngestBusyException ex)
+        {
+            return Conflict(new { error = ex.Message });
+        }
         catch (Exception ex)
         {
             return StatusCode(500, new { error = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Telemetry seeding status: ingested row counts and whether a background ingest is
+    /// running. Lets you verify a seed (local or hosted) without database access.
+    /// </summary>
+    [HttpGet("telemetry/status")]
+    public async Task<IActionResult> TelemetryStatus([FromServices] Data.F1DbContext db, CancellationToken ct)
+    {
+        if (!_env.IsDevelopment() && !_config.GetValue<bool>("AllowImport"))
+        {
+            return NotFound();
+        }
+
+        try
+        {
+            var seasons = await db.TelemetryRaces
+                .Select(r => r.Season).Distinct().OrderByDescending(s => s).ToListAsync(ct);
+            var races = await db.TelemetryRaces.CountAsync(ct);
+            var drivers = await db.TelemetryDrivers.CountAsync(ct);
+            var laps = await db.TelemetryLaps.CountAsync(ct);
+
+            return Ok(new
+            {
+                ingestRunning = _telemetryImporter.IsRunning,
+                seasons,
+                races,
+                drivers,
+                laps
+            });
+        }
+        catch (Npgsql.PostgresException ex) when (ex.SqlState == Npgsql.PostgresErrorCodes.UndefinedTable)
+        {
+            return Ok(new { ingestRunning = _telemetryImporter.IsRunning, seasons = Array.Empty<int>(), races = 0, drivers = 0, laps = 0, note = "telemetry tables not created yet" });
         }
     }
 

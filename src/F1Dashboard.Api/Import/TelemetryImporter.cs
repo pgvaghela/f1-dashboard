@@ -13,6 +13,10 @@ public sealed class TelemetryImporter
     private readonly IConfiguration _config;
     private readonly ILogger<TelemetryImporter> _logger;
 
+    // Singleton, so this tracks the one ingest allowed at a time across requests.
+    private readonly object _gate = new();
+    private Process? _current;
+
     public TelemetryImporter(
         IWebHostEnvironment env,
         IConfiguration config,
@@ -23,8 +27,31 @@ public sealed class TelemetryImporter
         _logger = logger;
     }
 
+    /// <summary>True while a background ingest process is still running.</summary>
+    public bool IsRunning
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _current is { HasExited: false };
+            }
+        }
+    }
+
     public TelemetryImportStartResult StartBatchImport(string? seasons, bool force)
     {
+        // FastF1 ingest is memory-heavy; running several at once OOMs small hosts and
+        // takes the whole API down. Allow only one at a time.
+        lock (_gate)
+        {
+            if (_current is { HasExited: false })
+            {
+                throw new TelemetryIngestBusyException(
+                    "A telemetry ingest is already running. Wait for it to finish or check /api/import/telemetry/log.");
+            }
+        }
+
         var repoRoot = ResolveRepoRoot();
         var script = Path.Combine(repoRoot, "tools", "ingest_all_telemetry.py");
         if (!File.Exists(script))
@@ -82,12 +109,24 @@ public sealed class TelemetryImporter
             logStream.WriteLine($"[{DateTimeOffset.UtcNow:u}] Exit code {process.ExitCode}");
             logStream.Dispose();
             _logger.LogInformation("Telemetry ingest finished with exit code {Code}", process.ExitCode);
+            lock (_gate)
+            {
+                if (ReferenceEquals(_current, process))
+                {
+                    _current = null;
+                }
+            }
         };
 
         if (!process.Start())
         {
             logStream.Dispose();
             throw new InvalidOperationException("Failed to start telemetry ingest process.");
+        }
+
+        lock (_gate)
+        {
+            _current = process;
         }
 
         process.BeginOutputReadLine();
@@ -222,3 +261,9 @@ public sealed record TelemetryImportStartResult(
     string LogFile,
     string? Seasons,
     bool Force);
+
+/// <summary>Thrown when an ingest is requested while one is already running.</summary>
+public sealed class TelemetryIngestBusyException : Exception
+{
+    public TelemetryIngestBusyException(string message) : base(message) { }
+}

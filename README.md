@@ -125,6 +125,10 @@ Or run a multi-season batch:
 python ingest_all_telemetry.py --seasons 2024,2025,2026
 ```
 
+> The same scripts seed **production** telemetry: point `PGHOST`/`PGDATABASE`/`PGUSER`/`PGPASSWORD`
+> at Neon and run them from a machine with enough RAM. Don't run the heavy ingest on a small
+> hosted instance — FastF1 is memory-hungry and will OOM. See [DEPLOYMENT.md](DEPLOYMENT.md#seeding-lap-telemetry).
+
 **2. Frontend:**
 
 ```bash
