@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Npgsql;
 
 namespace F1Dashboard.Api.Import;
 
@@ -9,11 +10,16 @@ namespace F1Dashboard.Api.Import;
 public sealed class TelemetryImporter
 {
     private readonly IWebHostEnvironment _env;
+    private readonly IConfiguration _config;
     private readonly ILogger<TelemetryImporter> _logger;
 
-    public TelemetryImporter(IWebHostEnvironment env, ILogger<TelemetryImporter> logger)
+    public TelemetryImporter(
+        IWebHostEnvironment env,
+        IConfiguration config,
+        ILogger<TelemetryImporter> logger)
     {
         _env = env;
+        _config = config;
         _logger = logger;
     }
 
@@ -49,15 +55,7 @@ public sealed class TelemetryImporter
             psi.ArgumentList.Add("--force");
         }
 
-        // Pass through DB credentials from the API host environment.
-        foreach (var key in new[] { "PGHOST", "PGPORT", "PGDATABASE", "PGUSER", "PGPASSWORD" })
-        {
-            var value = Environment.GetEnvironmentVariable(key);
-            if (!string.IsNullOrEmpty(value))
-            {
-                psi.Environment[key] = value;
-            }
-        }
+        ApplyDatabaseEnvironment(psi);
 
         var process = new Process { StartInfo = psi, EnableRaisingEvents = true };
         var logStream = new StreamWriter(logPath, append: true) { AutoFlush = true };
@@ -120,8 +118,58 @@ public sealed class TelemetryImporter
         return "python3";
     }
 
+    /// <summary>
+    /// Gives the Python ingest scripts the same Postgres target as the API.
+    /// Render/Neon expose <c>ConnectionStrings__F1Database</c>, not PGHOST/PGUSER.
+    /// </summary>
+    private void ApplyDatabaseEnvironment(ProcessStartInfo psi)
+    {
+        var hasPgEnv = new[] { "PGHOST", "PGDATABASE", "PGUSER" }
+            .Any(key => !string.IsNullOrEmpty(Environment.GetEnvironmentVariable(key)));
+
+        if (hasPgEnv)
+        {
+            foreach (var key in new[] { "PGHOST", "PGPORT", "PGDATABASE", "PGUSER", "PGPASSWORD", "PGSSLMODE" })
+            {
+                var value = Environment.GetEnvironmentVariable(key);
+                if (!string.IsNullOrEmpty(value))
+                {
+                    psi.Environment[key] = value;
+                }
+            }
+
+            return;
+        }
+
+        var connectionString = _config.GetConnectionString("F1Database");
+        if (string.IsNullOrWhiteSpace(connectionString))
+        {
+            _logger.LogWarning("No F1Database connection string found for telemetry ingest.");
+            return;
+        }
+
+        var builder = new NpgsqlConnectionStringBuilder(connectionString);
+        psi.Environment["PGHOST"] = builder.Host ?? "localhost";
+        psi.Environment["PGPORT"] = builder.Port.ToString();
+        psi.Environment["PGDATABASE"] = builder.Database ?? "";
+        psi.Environment["PGUSER"] = builder.Username ?? "";
+        psi.Environment["PGPASSWORD"] = builder.Password ?? "";
+        psi.Environment["PGSSLMODE"] = builder.SslMode == SslMode.Disable ? "disable" : "require";
+
+        _logger.LogInformation(
+            "Telemetry ingest will use database {Database} on {Host}.",
+            builder.Database,
+            builder.Host);
+    }
+
     private string ResolveRepoRoot()
     {
+        // Docker layout: API + tools both live under /app.
+        if (File.Exists(Path.Combine(_env.ContentRootPath, "tools", "ingest_all_telemetry.py")))
+        {
+            return _env.ContentRootPath;
+        }
+
         // ContentRootPath is src/F1Dashboard.Api when running locally.
         var candidate = Path.GetFullPath(Path.Combine(_env.ContentRootPath, "..", ".."));
         if (File.Exists(Path.Combine(candidate, "tools", "ingest_all_telemetry.py")))
