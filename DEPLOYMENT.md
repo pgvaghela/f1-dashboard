@@ -24,20 +24,25 @@ Keep this string for the next step.
 ## 2. Backend — Render
 
 1. [render.com](https://render.com) → **New → Web Service** → connect this GitHub repo.
-2. **Root Directory:** `src/F1Dashboard.Api`  (Render auto-detects the `Dockerfile`).
-3. **Environment variables:**
+2. **Root Directory:** repository root (`.`).
+3. **Dockerfile Path:** `Dockerfile.render` (this image includes `/app/tools` + Python deps for telemetry ingestion).
+4. **Environment variables:**
    | Key | Value |
    | --- | ----- |
    | `ConnectionStrings__F1Database` | the Npgsql string from step 1 |
    | `AllowImport` | `true` (temporary — lets you seed the DB once) |
    | `Cors__AllowedOrigins` | your Vercel URL (set after step 3; can edit later) |
-4. Deploy. On boot the app runs `EnsureCreated()` and builds the schema automatically.
-5. **Seed the data** (one time) — pull real F1 data into the fresh DB:
+5. Deploy. On boot the app runs `EnsureCreated()` and builds the schema automatically.
+6. **Seed the data** (one time) — pull real F1 data into the fresh DB:
    ```
    curl -X POST https://<your-render-url>/api/import
    ```
    (defaults to seasons 2023–2026; or `?seasons=2024,2025`). Takes ~30–60s.
-6. Set `AllowImport` back to `false` and redeploy (optional hardening).
+7. (Optional) Start telemetry ingest in background:
+   ```
+   curl -X POST https://<your-render-url>/api/import/telemetry?seasons=2024,2025,2026
+   ```
+8. Set `AllowImport` back to `false` and redeploy (optional hardening).
 
 Verify: `https://<your-render-url>/api/drivers` returns JSON.
 

@@ -1,0 +1,40 @@
+# Render production image for the API + telemetry tools.
+# Build context must be the repository root.
+
+# ---------- build ----------
+FROM ubuntu:24.04 AS build
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl ca-certificates libicu74 \
+    && rm -rf /var/lib/apt/lists/*
+RUN curl -sSL https://dot.net/v1/dotnet-install.sh | bash /dev/stdin \
+    --channel 9.0 --install-dir /usr/share/dotnet
+ENV DOTNET_ROOT=/usr/share/dotnet
+ENV PATH="/usr/share/dotnet:${PATH}"
+
+WORKDIR /src
+COPY src/F1Dashboard.Api/F1Dashboard.Api.csproj src/F1Dashboard.Api/
+RUN dotnet restore src/F1Dashboard.Api/F1Dashboard.Api.csproj
+COPY src/F1Dashboard.Api/ src/F1Dashboard.Api/
+RUN dotnet publish src/F1Dashboard.Api/F1Dashboard.Api.csproj -c Release -o /app --no-restore
+
+# ---------- runtime ----------
+FROM ubuntu:24.04 AS runtime
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl ca-certificates libicu74 python3 python3-pip \
+    && rm -rf /var/lib/apt/lists/*
+RUN curl -sSL https://dot.net/v1/dotnet-install.sh | bash /dev/stdin \
+    --channel 9.0 --runtime aspnetcore --install-dir /usr/share/dotnet
+ENV DOTNET_ROOT=/usr/share/dotnet
+ENV PATH="/usr/share/dotnet:${PATH}"
+
+WORKDIR /app
+COPY --from=build /app ./
+COPY tools/ /app/tools/
+RUN python3 -m pip install --break-system-packages --no-cache-dir -r /app/tools/requirements.txt
+
+ENV ASPNETCORE_ENVIRONMENT=Production
+EXPOSE 8080
+
+ENTRYPOINT ["dotnet", "F1Dashboard.Api.dll"]
