@@ -25,7 +25,7 @@ A full-stack Formula 1 analytics dashboard — browse drivers, constructors, and
 - **Database:** PostgreSQL, hosted on **Neon**.
 - **Machine learning:** an in-process [ML.NET](https://dotnet.microsoft.com/apps/machinelearning-ai/ml-dotnet) **FastTree** gradient-boosted classifier that predicts race winners — trained from the same Postgres data, no separate service to deploy.
 - **Data:** real F1 results pulled from the public [Jolpica/Ergast API](https://api.jolpi.ca/) via a built-in importer.
-- **Hero visual:** a cinematic clip generated with [Higgsfield](https://higgsfield.ai), scroll-scrubbed (and replaced by a static poster under `prefers-reduced-motion`).
+- **Hero visual:** scroll-scrubbed real F1 track footage (Pexels, royalty-free) with a reduced-motion poster fallback. Re-download via `tools/fetch-hero-video.sh`.
 
 ## Architecture
 
@@ -39,7 +39,7 @@ flowchart LR
 
 ## Features
 
-- Apple-style landing page with a scroll-driven hero video and reduced-motion fallback.
+- Apple-style landing page with scroll-scrubbed real F1 track footage and a reduced-motion poster fallback.
 - Drivers and constructors listings.
 - Driver **and** constructor championship standings with a season selector (2023–2026) and a Drivers/Constructors toggle.
 - Standings computed server-side from race results (points aggregated per driver/constructor).
