@@ -1,0 +1,43 @@
+name: Refresh F1 data
+
+# F1 results land on race weekends, but our importer only pulls from the Jolpica/
+# Ergast API on demand — so standings, results and the predictor go stale until
+# someone POSTs /api/import. This re-imports the current seasons every Monday and
+# Tuesday morning (UTC) to catch Sunday races plus any upstream publishing lag.
+#
+# Requirements / notes:
+#   - Render must have AllowImport=true (the import endpoint is gated on it).
+#   - The importer does a FULL rebuild from upstream and wipes all seasons it is NOT
+#     given, so we always pass the full range (2023..current year, computed below).
+#   - It does not touch the telemetry_* tables (lap data is seeded separately).
+#   - Takes ~2 min (plus a possible free-tier cold start), so timeouts are generous.
+
+on:
+  schedule:
+    - cron: "0 7 * * 1,2" # 07:00 UTC, Mon & Tue
+  workflow_dispatch: {} # manual run from the Actions tab
+
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    env:
+      BASE_URL: https://f1-dashboard-x2st.onrender.com
+    steps:
+      - name: Re-import current seasons from upstream
+        run: |
+          set -e
+          YEAR=$(date -u +%Y)
+          SEASONS=$(seq 2023 "$YEAR" | paste -sd, -)
+          echo "Importing seasons: $SEASONS"
+          for attempt in 1 2; do
+            echo "Attempt $attempt..."
+            code=$(curl -sS -m 300 -X POST "$BASE_URL/api/import?seasons=$SEASONS" \
+                     -o /tmp/import.json -w "%{http_code}") || true
+            echo "HTTP $code"
+            cat /tmp/import.json 2>/dev/null; echo
+            if [ "$code" = "200" ]; then
+              echo "Import OK"; exit 0
+            fi
+            echo "Retrying in 30s..."; sleep 30
+          done
+          echo "Import failed after 2 attempts"; exit 1
