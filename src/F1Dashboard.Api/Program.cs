@@ -52,6 +52,9 @@ builder.Services.AddSingleton<KalshiOddsService>();
 // Trains and caches the ML.NET race-winner model (singleton; trains lazily on
 // first prediction request from the imported data).
 builder.Services.AddSingleton<RaceWinnerModel>();
+// Pre-warms that model in the background at startup so the first visitor doesn't
+// pay the one-time training cost (~30s on small hosts).
+builder.Services.AddHostedService<ModelWarmupService>();
 
 // Importer pulls live F1 data from the Jolpica/Ergast public API.
 builder.Services.AddHttpClient<F1DataImporter>(client =>

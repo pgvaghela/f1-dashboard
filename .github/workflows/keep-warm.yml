@@ -1,0 +1,28 @@
+name: Keep API warm
+
+# Render's free tier spins down after ~15 min idle (and Neon auto-suspends), so the
+# first request after a lull cold-starts (~30-60s) and re-trains the predictor. This
+# pings the API every ~10 min to keep it awake and the model cached.
+#
+# Note: GitHub's scheduled runs are best-effort and can be delayed under load. For a
+# tighter SLA use an external pinger (UptimeRobot, cron-job.org) hitting /api/drivers.
+
+on:
+  schedule:
+    - cron: "*/10 * * * *" # every 10 minutes
+  workflow_dispatch: {} # allow manual run from the Actions tab
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    env:
+      BASE_URL: https://f1-dashboard-x2st.onrender.com
+    steps:
+      - name: Wake API (Render + Neon) and warm the predictor
+        run: |
+          set -e
+          # First hit may cold-start, so allow generous timeouts.
+          echo "Pinging $BASE_URL/api/drivers"
+          curl -fsS -m 120 "$BASE_URL/api/drivers" -o /dev/null && echo "  drivers OK"
+          echo "Warming predictor"
+          curl -fsS -m 120 "$BASE_URL/api/predictions/races/2026" -o /dev/null && echo "  predictor warm"

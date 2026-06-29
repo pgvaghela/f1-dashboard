@@ -155,6 +155,12 @@ public class RaceWinnerModel
         return new TrainingSummary(_results.Count, _raceById.Count, _accuracy);
     }
 
+    /// <summary>
+    /// Builds and caches the model ahead of the first request (idempotent). Lets a
+    /// startup task pay the one-time training cost instead of the first visitor.
+    /// </summary>
+    public Task WarmUpAsync() => EnsureReadyAsync();
+
     private async Task EnsureReadyAsync()
     {
         if (_ready)
