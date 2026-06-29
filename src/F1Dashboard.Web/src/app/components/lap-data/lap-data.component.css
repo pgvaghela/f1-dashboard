@@ -1,11 +1,10 @@
-/* ---- Sticky selector bar ---- */
+/* ---- Selector bar (scrolls with page — sticky overlapped the track) ---- */
 .selector-bar {
-  position: sticky;
-  top: calc(var(--nav-height) - 8px);
-  z-index: 20;
+  position: relative;
+  z-index: 1;
   border-radius: 16px;
   padding: var(--space-3);
-  margin-bottom: var(--space-3);
+  margin-bottom: var(--space-4);
 }
 
 .controls {
@@ -54,6 +53,7 @@
     "trace trace";
   gap: var(--space-4);
   align-items: start;
+  scroll-margin-top: calc(var(--nav-height) + var(--space-3));
 }
 
 .track-card { grid-area: track; }
@@ -67,6 +67,32 @@
       "track"
       "side"
       "trace";
+  }
+
+  /* Keep selectors on one scrollable row so the bar stays short above the track. */
+  .selector-bar .controls {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+    scrollbar-width: thin;
+    padding-bottom: 4px;
+  }
+
+  .selector-bar .field,
+  .selector-bar .compare-toggle {
+    flex-shrink: 0;
+  }
+
+  .selector-bar .controls--compare {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+  }
+
+  .selector-bar .field__select--wide {
+    min-width: 200px;
   }
 }
 
