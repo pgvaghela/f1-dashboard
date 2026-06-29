@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.ML;
 using F1Dashboard.Api.Data;
+using Npgsql;
 
 namespace F1Dashboard.Api.Ml;
 
@@ -91,6 +92,7 @@ public class RaceWinnerModel
     private record FieldEntry(
         int DriverId, string DriverFirst, string DriverLast, string DriverCode,
         int ConstructorId, string ConstructorName);
+    private record QualifyingGapRow(int RaceId, int DriverId, decimal? Q1Time, decimal? Q2Time, decimal? Q3Time);
 
     public record RaceInfo(
         int RaceId, int Season, int Round, DateOnly Date, string Name, string Circuit, bool HasResult);
@@ -238,9 +240,20 @@ public class RaceWinnerModel
     /// </summary>
     private async Task LoadQualifyingGapsAsync(F1DbContext db)
     {
-        var qualRows = await db.QualifyingResults
-            .Select(q => new { q.RaceId, q.DriverId, q.Q1Time, q.Q2Time, q.Q3Time })
-            .ToListAsync();
+        List<QualifyingGapRow> qualRows;
+        try
+        {
+            qualRows = await db.QualifyingResults
+                .Select(q => new QualifyingGapRow(q.RaceId, q.DriverId, q.Q1Time, q.Q2Time, q.Q3Time))
+                .ToListAsync();
+        }
+        catch (PostgresException ex) when (ex.SqlState == PostgresErrorCodes.UndefinedTable)
+        {
+            // Older hosted DBs can miss this newer table; fall back to neutral qualifying gaps.
+            _logger.LogWarning("qualifying_results table is missing; using neutral qualifying gap fallback for predictions.");
+            _qualGap = new Dictionary<(int, int), float>();
+            return;
+        }
 
         _qualGap = new Dictionary<(int, int), float>();
         foreach (var byRace in qualRows.GroupBy(q => q.RaceId))
