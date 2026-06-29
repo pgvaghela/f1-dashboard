@@ -30,7 +30,8 @@ public class StandingsController : ControllerBase
                 rr.Driver.Nationality,
                 rr.Race.Round,
                 TeamName = rr.Constructor.TeamName,
-                rr.Points
+                rr.Points,
+                rr.SprintPoints
             })
             .ToListAsync();
 
@@ -50,7 +51,7 @@ public class StandingsController : ControllerBase
                 Nationality = g.Key.Nationality,
                 // The driver's most recent team this season (handles mid-season moves).
                 TeamName = g.OrderByDescending(r => r.Round).First().TeamName,
-                TotalPoints = g.Sum(r => r.Points)
+                TotalPoints = g.Sum(r => r.Points + r.SprintPoints)
             })
             .OrderByDescending(s => s.TotalPoints)
             .ToList();
@@ -80,7 +81,7 @@ public class StandingsController : ControllerBase
                 ConstructorId = g.Key.ConstructorId,
                 TeamName = g.Key.TeamName,
                 Nationality = g.Key.Nationality,
-                TotalPoints = g.Sum(rr => rr.Points)
+                TotalPoints = g.Sum(rr => rr.Points + rr.SprintPoints)
             })
             .OrderByDescending(s => s.TotalPoints)
             .ToListAsync();

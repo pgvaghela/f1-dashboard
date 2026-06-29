@@ -8,6 +8,10 @@ public class RaceResult
     public int GridPosition {get; set;}
     public int? FinishPosition {get; set;}
     public decimal Points {get; set;}
+    // Points scored in this round's sprint race (0 on non-sprint weekends). Kept
+    // separate from Points so the race-results view still shows main-race points,
+    // while standings count race + sprint.
+    public decimal SprintPoints {get; set;}
     public int Laps {get; set;}
     public int? FastestLapNumber {get; set;}
     public decimal? FastestLapTime {get; set;}

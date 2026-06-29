@@ -55,6 +55,9 @@ public class F1DataImporter
         var drivers = new Dictionary<string, Driver>();
         var races = new Dictionary<string, Race>();
         var results = new List<RaceResult>();
+        // Keyed by "season-round:driverId" so sprint points can be attached to the
+        // matching main-race result row.
+        var resultByRaceDriver = new Dictionary<string, RaceResult>();
         // Keyed by "season-round:driverId" so a driver's qualifying row is unique per race.
         var qualifying = new Dictionary<string, QualifyingResult>();
 
@@ -66,7 +69,11 @@ public class F1DataImporter
         {
             await ImportSeasonAsync(
                 season, circuits, constructors, drivers, races, results,
-                resultMillis, winnerMillis, ct);
+                resultByRaceDriver, resultMillis, winnerMillis, ct);
+
+            // Sprint races award championship points too; fold them into the matching
+            // main-race result so standings count race + sprint.
+            await ImportSprintsAsync(season, resultByRaceDriver, ct);
 
             // Pull qualifying so the predictor can use pace-vs-pole, the strongest
             // current-form signal. Reuses the same driver/constructor/race entities.
@@ -108,6 +115,7 @@ public class F1DataImporter
         Dictionary<string, Driver> drivers,
         Dictionary<string, Race> races,
         List<RaceResult> results,
+        Dictionary<string, RaceResult> resultByRaceDriver,
         List<(RaceResult, long)> resultMillis,
         Dictionary<string, long> winnerMillis,
         CancellationToken ct)
@@ -172,6 +180,7 @@ public class F1DataImporter
                         FastestLapTime = r.FastestLap is null ? null : ParseLapTimeSeconds(r.FastestLap.Time.Time)
                     };
                     results.Add(result);
+                    resultByRaceDriver[$"{raceKey}:{r.Driver.DriverId}"] = result;
 
                     var millis = ParseLongOrNull(r.Time?.Millis);
                     if (millis is not null)
@@ -181,6 +190,51 @@ public class F1DataImporter
                         {
                             winnerMillis[raceKey] = millis.Value;
                         }
+                    }
+                }
+            }
+
+            offset += PageSize;
+            await Task.Delay(250, ct); // be polite to the public API
+        } while (offset < total);
+    }
+
+    /// <summary>
+    /// Pulls sprint-race results for a season and adds each driver's sprint points onto
+    /// the matching main-race result for that round (so championship standings include
+    /// sprint points). Non-sprint weekends simply return nothing.
+    /// </summary>
+    private async Task ImportSprintsAsync(
+        int season,
+        Dictionary<string, RaceResult> resultByRaceDriver,
+        CancellationToken ct)
+    {
+        var offset = 0;
+        int total;
+        do
+        {
+            var url = $"{BaseUrl}/{season}/sprint.json?limit={PageSize}&offset={offset}";
+            var response = await _http.GetFromJsonAsync<ErgastResponse>(url, JsonOptions, ct)
+                ?? throw new InvalidOperationException($"Empty response from {url}");
+            total = ParseInt(response.MRData.Total);
+
+            foreach (var race in response.MRData.RaceTable.Races)
+            {
+                var raceKey = RaceKey(ParseInt(race.Season), ParseInt(race.Round));
+                foreach (var s in race.SprintResults)
+                {
+                    var key = $"{raceKey}:{s.Driver.DriverId}";
+                    if (resultByRaceDriver.TryGetValue(key, out var result))
+                    {
+                        result.SprintPoints += ParseDecimal(s.Points);
+                    }
+                    else
+                    {
+                        // A sprint scorer with no main-race row is not expected; log so the
+                        // points aren't silently lost if it ever happens.
+                        _logger.LogWarning(
+                            "Sprint result for {Driver} in {RaceKey} has no main-race result; skipping its points.",
+                            s.Driver.DriverId, raceKey);
                     }
                 }
             }

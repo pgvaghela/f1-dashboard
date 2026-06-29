@@ -28,6 +28,8 @@ public class ErgastRace
     public string Date { get; set; } = string.Empty;
     public ErgastCircuit Circuit { get; set; } = new();
     public List<ErgastResult> Results { get; set; } = new();
+    // Sprint races share the result shape (driver, constructor, points, position).
+    public List<ErgastResult> SprintResults { get; set; } = new();
     public List<ErgastQualifyingResult> QualifyingResults { get; set; } = new();
 }
 

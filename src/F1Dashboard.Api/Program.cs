@@ -80,6 +80,11 @@ if (!string.IsNullOrWhiteSpace(app.Configuration.GetConnectionString("F1Database
     var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
     db.Database.EnsureCreated();
     await TelemetrySchemaBootstrap.EnsureAsync(db, logger);
+
+    // EnsureCreated() never alters existing tables, so add columns introduced after a
+    // database was first created. (sprint_points: standings now count sprint races.)
+    await db.Database.ExecuteSqlRawAsync(
+        "ALTER TABLE race_results ADD COLUMN IF NOT EXISTS sprint_points numeric NOT NULL DEFAULT 0;");
 }
 
 // Configure the HTTP request pipeline.
