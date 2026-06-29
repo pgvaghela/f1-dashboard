@@ -247,10 +247,15 @@ public class RaceWinnerModel
                 .Select(q => new QualifyingGapRow(q.RaceId, q.DriverId, q.Q1Time, q.Q2Time, q.Q3Time))
                 .ToListAsync();
         }
-        catch (PostgresException ex) when (ex.SqlState == PostgresErrorCodes.UndefinedTable)
+        catch (PostgresException ex) when (
+            ex.SqlState == PostgresErrorCodes.UndefinedTable ||
+            ex.SqlState == PostgresErrorCodes.UndefinedColumn)
         {
-            // Older hosted DBs can miss this newer table; fall back to neutral qualifying gaps.
-            _logger.LogWarning("qualifying_results table is missing; using neutral qualifying gap fallback for predictions.");
+            // Older hosted DBs can miss this table or use legacy column names (q1time vs q1_time).
+            // In either case, fall back to neutral qualifying gaps instead of failing requests.
+            _logger.LogWarning(
+                "qualifying_results schema is incompatible ({SqlState}); using neutral qualifying gap fallback for predictions.",
+                ex.SqlState);
             _qualGap = new Dictionary<(int, int), float>();
             return;
         }
