@@ -6,8 +6,8 @@
 
   @if (!loading && seasons.length === 0) {
     <p class="state">
-      No telemetry has been ingested yet. Run
-      <code>tools/ingest_telemetry.py</code> to load a session.
+      No lap telemetry is loaded on this deployment yet. If you are the admin, run
+      <code>POST /api/import/telemetry?seasons=2026</code> on the API host and wait for ingest to finish.
     </p>
   } @else {
     <!-- Sticky cascading selectors -->

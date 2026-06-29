@@ -93,6 +93,19 @@ public class ImportController : ControllerBase
         }
     }
 
+    /// <summary>Tail of the background telemetry ingest log (for debugging hosted imports).</summary>
+    [HttpGet("telemetry/log")]
+    public IActionResult TelemetryLog([FromQuery] int lines = 80)
+    {
+        if (!_env.IsDevelopment() && !_config.GetValue<bool>("AllowImport"))
+        {
+            return NotFound();
+        }
+
+        var tail = _telemetryImporter.ReadLogTail(Math.Clamp(lines, 10, 500));
+        return Ok(new { log = tail ?? "(no telemetry ingest log yet)" });
+    }
+
     private static List<int> ParseSeasons(string? seasons)
     {
         if (string.IsNullOrWhiteSpace(seasons))

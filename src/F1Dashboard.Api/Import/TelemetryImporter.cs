@@ -96,6 +96,19 @@ public sealed class TelemetryImporter
         return new TelemetryImportStartResult(process.Id, logPath, seasons, force);
     }
 
+    /// <summary>Returns the tail of the background ingest log file, if present.</summary>
+    public string? ReadLogTail(int maxLines = 80)
+    {
+        var logPath = Path.Combine(ResolveRepoRoot(), "tools", "telemetry_ingest.log");
+        if (!File.Exists(logPath))
+        {
+            return null;
+        }
+
+        var lines = File.ReadLines(logPath).TakeLast(maxLines).ToArray();
+        return string.Join(Environment.NewLine, lines);
+    }
+
     private static string ResolvePython(string repoRoot)
     {
         if (OperatingSystem.IsWindows())
@@ -124,6 +137,18 @@ public sealed class TelemetryImporter
     /// </summary>
     private void ApplyDatabaseEnvironment(ProcessStartInfo psi)
     {
+        // Child processes do not inherit the host environment when UseShellExecute=false.
+        foreach (System.Collections.DictionaryEntry entry in Environment.GetEnvironmentVariables())
+        {
+            var key = entry.Key?.ToString();
+            if (string.IsNullOrEmpty(key))
+            {
+                continue;
+            }
+
+            psi.Environment[key] = entry.Value?.ToString() ?? string.Empty;
+        }
+
         var hasPgEnv = new[] { "PGHOST", "PGDATABASE", "PGUSER" }
             .Any(key => !string.IsNullOrEmpty(Environment.GetEnvironmentVariable(key)));
 
