@@ -3,102 +3,167 @@ import {
   Component,
   ElementRef,
   HostListener,
-  OnDestroy,
-  ViewChild,
-  inject
+  OnInit,
+  ViewChild
 } from '@angular/core';
-import { RouterLink } from '@angular/router';
+import { RouterLink, RouterLinkActive } from '@angular/router';
+import { PredictionService } from '../../services/prediction.service';
+import { PredictableRace } from '../../models/prediction';
+import { Headline } from '../../models/headline';
+import { HeadlinesService } from '../../services/headlines.service';
 
 @Component({
   selector: 'app-home',
-  imports: [RouterLink],
+  imports: [RouterLink, RouterLinkActive],
   templateUrl: './home.component.html',
   styleUrl: './home.component.css'
 })
-export class HomeComponent implements AfterViewInit, OnDestroy {
-  private host = inject<ElementRef<HTMLElement>>(ElementRef);
-  private observer?: IntersectionObserver;
+export class HomeComponent implements AfterViewInit, OnInit {
   private ticking = false;
+  private scrubRaf: number | null = null;
+  private targetTime = 0;
 
-  /** The fixed-background hero video whose currentTime is driven by scroll. */
   @ViewChild('heroVideo') heroVideo?: ElementRef<HTMLVideoElement>;
 
-  /** When true, skip the scroll-scrub video entirely and show the static poster. */
   readonly reduceMotion =
     typeof window !== 'undefined' &&
     window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-  ngAfterViewInit(): void {
-    this.setupReveal();
+  menuOpen = false;
+  scrollProgress = 0;
 
-    // Prime the scrub once the video knows its duration, and set the initial frame.
-    const video = this.heroVideo?.nativeElement;
-    if (video) {
-      video.addEventListener('loadedmetadata', () => this.updateScrub());
-      this.updateScrub();
+  readonly navLinks = [
+    { label: 'Drivers', href: '/drivers' },
+    { label: 'Constructors', href: '/constructors' },
+    { label: 'Standings', href: '/standings' },
+    { label: 'Predictor', href: '/predictor' },
+    { label: 'Lap Data', href: '/lap-data' }
+  ];
+
+  readonly meta = ['2026 Season', '24 Races', 'Live Telemetry'];
+  upcomingRaces: PredictableRace[] = [];
+  headlinesLoading = true;
+
+  newsItems: Headline[] = [];
+
+  constructor(
+    private readonly predictions: PredictionService,
+    private readonly headlines: HeadlinesService
+  ) {}
+
+  ngOnInit(): void {
+    this.predictions.getRaces(2026).subscribe({
+      next: (races) => {
+        this.upcomingRaces = races
+          .filter((race) => !race.hasResult)
+          .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+          .slice(0, 6);
+      },
+      error: (err) => {
+        this.upcomingRaces = [];
+        console.error('Failed to load upcoming races for home page', err);
+      }
+    });
+
+    this.headlines.getLatest(6).subscribe({
+      next: (items) => {
+        this.newsItems = items;
+        this.headlinesLoading = false;
+      },
+      error: (err) => {
+        this.newsItems = [];
+        this.headlinesLoading = false;
+        console.error('Failed to load live headlines for home page', err);
+      }
+    });
+
+    if (!this.reduceMotion) {
+      this.updateScrollProgress();
     }
   }
 
-  // Scroll drives the hero video forward; rAF keeps it to one update per frame.
+  ngAfterViewInit(): void {
+    const video = this.heroVideo?.nativeElement;
+    if (video && !this.reduceMotion) {
+      video.addEventListener('loadedmetadata', () => {
+        this.syncTargetTime();
+        video.currentTime = this.targetTime;
+      });
+      this.syncTargetTime();
+      this.startScrubLoop();
+    }
+  }
+
   @HostListener('window:scroll')
   onScroll(): void {
     if (this.reduceMotion || this.ticking) {
       return;
     }
+
     this.ticking = true;
     requestAnimationFrame(() => {
-      this.updateScrub();
+      this.updateScrollProgress();
+      this.syncTargetTime();
+      this.startScrubLoop();
       this.ticking = false;
     });
   }
 
-  private updateScrub(): void {
+  toggleMenu(): void {
+    this.menuOpen = !this.menuOpen;
+  }
+
+  closeMenu(): void {
+    this.menuOpen = false;
+  }
+
+  formatRaceDate(dateValue: string): string {
+    const date = new Date(dateValue);
+    return new Intl.DateTimeFormat('en-US', {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric'
+    }).format(date);
+  }
+
+  private updateScrollProgress(): void {
+    const distance = window.innerHeight * 2.2;
+    this.scrollProgress = Math.min(Math.max(window.scrollY / distance, 0), 1);
+  }
+
+  private syncTargetTime(): void {
     const video = this.heroVideo?.nativeElement;
     if (!video || !video.duration || Number.isNaN(video.duration)) {
       return;
     }
 
-    // Map the first ~2.2 screens of scrolling to the full clip. The page scrolls
-    // normally over the fixed video background; this just drives the car forward.
-    const distance = window.innerHeight * 2.2;
-    const progress = Math.min(Math.max(window.scrollY / distance, 0), 1);
-
-    const target = progress * video.duration;
-    // fastSeek (where supported) is smoother for scrubbing than setting currentTime.
-    if (typeof video.fastSeek === 'function') {
-      video.fastSeek(target);
-    } else {
-      video.currentTime = target;
-    }
+    this.targetTime = this.scrollProgress * video.duration;
   }
 
-  private setupReveal(): void {
-    const targets = Array.from(
-      this.host.nativeElement.querySelectorAll<HTMLElement>('.reveal')
-    );
-
-    // Reduced motion (or no IntersectionObserver support): show everything at once.
-    if (this.reduceMotion || !('IntersectionObserver' in window)) {
-      targets.forEach((el) => el.classList.add('is-visible'));
+  private startScrubLoop(): void {
+    if (this.scrubRaf !== null) {
       return;
     }
 
-    this.observer = new IntersectionObserver(
-      (entries, obs) => {
-        for (const entry of entries) {
-          if (entry.isIntersecting) {
-            entry.target.classList.add('is-visible');
-            obs.unobserve(entry.target);
-          }
-        }
-      },
-      { threshold: 0.15, rootMargin: '0px 0px -10% 0px' }
-    );
+    const tick = () => {
+      const video = this.heroVideo?.nativeElement;
+      if (!video || !video.duration || Number.isNaN(video.duration)) {
+        this.scrubRaf = null;
+        return;
+      }
 
-    targets.forEach((el) => this.observer!.observe(el));
-  }
+      const delta = this.targetTime - video.currentTime;
+      if (Math.abs(delta) <= 1 / 120) {
+        video.currentTime = this.targetTime;
+        this.scrubRaf = null;
+        return;
+      }
 
-  ngOnDestroy(): void {
-    this.observer?.disconnect();
+      // Smoothly ease toward target time to avoid keyframe-jump teleports.
+      video.currentTime += delta * 0.22;
+      this.scrubRaf = requestAnimationFrame(tick);
+    };
+
+    this.scrubRaf = requestAnimationFrame(tick);
   }
 }

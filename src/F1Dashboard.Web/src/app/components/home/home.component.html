@@ -1,97 +1,152 @@
-<!--
-  Hero visual: a Higgsfield-generated cinematic clip (public/hero/hero.mp4).
-  Under prefers-reduced-motion the video is not rendered — a static poster fills a
-  normal-height hero. Otherwise the video is a fixed full-viewport background; the
-  page content scrolls normally over it while scroll progress drives the video's
-  currentTime, so the car drives forward as you scroll down.
--->
-@if (reduceMotion) {
-  <section class="hero">
-    <img
-      class="hero__media"
-      src="hero/poster.webp"
-      alt="A race car silhouette in a dark tunnel lit by cool blue underglow and streaking lights."
-    />
-    <div class="hero__overlay" aria-hidden="true"></div>
-    <div class="hero__content container">
-      <h1 class="hero__title">F1 Dashboard</h1>
-      <p class="hero__tagline">
-        Drivers, constructors, and championship standings — every season, one place.
-      </p>
-      <a class="btn btn--primary" routerLink="/drivers">Explore drivers</a>
-    </div>
-  </section>
-} @else {
-  <div class="hero-bg" aria-hidden="true">
-    <video
-      class="hero__media"
-      #heroVideo
-      muted
-      playsinline
-      preload="auto"
-      poster="hero/poster.webp"
-      aria-label="A race car silhouette driving forward through a dark tunnel, lit by cool blue underglow and motion-blurred light streaks."
-    >
-      <source src="hero/hero.mp4" type="video/mp4" />
-    </video>
-    <div class="hero__overlay"></div>
+<section class="f1-hero" [class.f1-hero--static]="reduceMotion" [style.--hero-progress]="scrollProgress">
+  <div class="hero-media" aria-hidden="true">
+    @if (reduceMotion) {
+      <img class="hero-media__still" src="hero/poster.jpg" alt="" />
+    } @else {
+      <video
+        class="hero-media__video"
+        #heroVideo
+        muted
+        playsinline
+        preload="auto"
+        poster="hero/poster.jpg"
+        aria-label="Formula 1 cars racing on track"
+      >
+        <source src="hero/hero.mp4" type="video/mp4" />
+      </video>
+    }
+    <div class="hero-media__ui-mask"></div>
+    <div class="hero-media__grade"></div>
+    <div class="hero-media__vignette"></div>
+    <div class="hero-media__bottom-fade"></div>
   </div>
 
-  <section class="hero-intro">
-    <div class="hero__content container">
-      <h1 class="hero__title">F1 Dashboard</h1>
-      <p class="hero__tagline">
-        Drivers, constructors, and championship standings — every season, one place.
-      </p>
-      <a class="btn btn--primary" routerLink="/drivers">Explore drivers</a>
-      <p class="hero__hint" aria-hidden="true">Scroll ↓</p>
-    </div>
-  </section>
-}
+  <header class="hero-nav">
+    <div class="hero-nav__inner container">
+      <a class="hero-brand animate-blur-fade-up" style="animation-delay: 0ms" routerLink="/">
+        <span class="hero-brand__mark" aria-hidden="true"></span>
+        F1 Dashboard
+      </a>
 
-<section class="section section--secondary">
-  <div class="container section__grid reveal">
-    <div>
-      <h2 class="section__title">Real F1 data</h2>
-      <p class="section__body">
-        Championship standings computed straight from race results — points
-        aggregated per driver and per constructor, ranked by season.
-      </p>
-      <a class="link-arrow" routerLink="/standings">View standings &rsaquo;</a>
+      <nav class="hero-links">
+        @for (link of navLinks; track link.href; let i = $index) {
+          <a
+            class="hero-link animate-blur-fade-up"
+            [style.animation-delay.ms]="100 + (i * 50)"
+            [routerLink]="link.href"
+            routerLinkActive="hero-link--active"
+          >
+            {{ link.label }}
+          </a>
+        }
+      </nav>
+
+      <button
+        class="hero-menu-btn liquid-glass animate-blur-fade-up"
+        style="animation-delay: 350ms"
+        [class.hero-menu-btn--open]="menuOpen"
+        (click)="toggleMenu()"
+        [attr.aria-expanded]="menuOpen"
+        aria-label="Toggle menu"
+      >
+        <span></span><span></span><span></span>
+      </button>
     </div>
-    <div class="section__preview" aria-hidden="true">
-      <div class="preview-table">
-        <div class="preview-row preview-row--head">
-          <span>Pos</span><span>Driver</span><span>Pts</span>
-        </div>
-        <div class="preview-row"><span>1</span><span>Verstappen</span><span>125</span></div>
-        <div class="preview-row"><span>2</span><span>Norris</span><span>98</span></div>
-        <div class="preview-row"><span>3</span><span>Leclerc</span><span>91</span></div>
+
+    <div class="hero-mobile-menu" [class.hero-mobile-menu--open]="menuOpen">
+      <div class="hero-mobile-menu__content container liquid-glass">
+        @for (link of navLinks; track link.href; let i = $index) {
+          <a
+            class="hero-mobile-link"
+            [style.transition-delay.ms]="40 + (i * 35)"
+            [routerLink]="link.href"
+            routerLinkActive="hero-mobile-link--active"
+            (click)="closeMenu()"
+          >
+            {{ link.label }}
+          </a>
+        }
       </div>
     </div>
-  </div>
-</section>
+  </header>
 
-<section class="section">
-  <div class="container section__center reveal">
-    <h2 class="section__title">Built end-to-end</h2>
-    <p class="section__body section__body--wide">
-      An ASP.NET Core 9 Web API over PostgreSQL with Entity Framework Core,
-      fronted by a standalone-component Angular 19 app. Typed DTOs, async data
-      access, and a clean REST surface throughout.
-    </p>
-  </div>
-</section>
-
-<section class="section section--secondary">
-  <div class="container section__center reveal">
-    <h2 class="section__title">Try it</h2>
-    <p class="section__body">Jump straight into the data.</p>
-    <div class="section__links">
-      <a class="btn btn--ghost" routerLink="/drivers">Drivers</a>
-      <a class="btn btn--ghost" routerLink="/constructors">Constructors</a>
-      <a class="btn btn--ghost" routerLink="/standings">Standings</a>
-      <a class="btn btn--primary" routerLink="/predictor">Predictor</a>
+  <div class="hero-scroll-track" [class.hero-scroll-track--static]="reduceMotion">
+    <div class="hero-stage container">
+      <div class="hero-content">
+        <div class="hero-meta animate-blur-fade-up" style="animation-delay: 300ms">
+          @for (item of meta; track item) {
+            <span class="hero-meta__item liquid-glass">{{ item }}</span>
+          }
+        </div>
+        <h1 class="hero-title animate-blur-fade-up" style="animation-delay: 400ms">
+          <span class="hero-title__line">Every Lap.</span>
+          <span class="hero-title__line hero-title__line--accent">Every Point.</span>
+          <span class="hero-title__line">One Dashboard.</span>
+        </h1>
+        <p class="hero-description animate-blur-fade-up" style="animation-delay: 500ms">
+          Everything from drivers and constructors to standings, race picks, and lap telemetry, all in one place.
+        </p>
+        <div class="hero-cta">
+          <a class="btn-primary animate-blur-fade-up" style="animation-delay: 600ms" routerLink="/drivers">
+            Explore Drivers
+          </a>
+          <a class="btn-glass liquid-glass animate-blur-fade-up" style="animation-delay: 700ms" routerLink="/standings">
+            View Standings
+          </a>
+        </div>
+      </div>
     </div>
+
+    <section class="home-feed container">
+      <article class="feed-card liquid-glass hud-panel">
+        <div class="feed-card__head">
+          <div>
+            <p class="speed-eyebrow">Upcoming Races</p>
+            <h2 class="feed-title">Next on the calendar</h2>
+          </div>
+          <a class="feed-link" routerLink="/predictor">Open predictor</a>
+        </div>
+
+        @if (upcomingRaces.length === 0) {
+          <p class="feed-empty">Race schedule is loading.</p>
+        } @else {
+          <div class="race-list">
+            @for (race of upcomingRaces; track race.raceId; let i = $index) {
+              <div class="race-item" [class.race-item--featured]="i === 0">
+                <span class="race-item__round">R{{ race.round }}</span>
+                <div class="race-item__body">
+                  <p class="race-item__name">{{ race.name }}</p>
+                  <p class="race-item__meta">{{ race.circuit }}</p>
+                </div>
+                <p class="race-item__date">{{ formatRaceDate(race.date) }}</p>
+              </div>
+            }
+          </div>
+        }
+      </article>
+
+      <article class="feed-card liquid-glass hud-panel">
+        <div class="feed-card__head">
+          <div>
+            <p class="speed-eyebrow">News Wire</p>
+            <h2 class="feed-title">Latest headlines</h2>
+          </div>
+        </div>
+        @if (headlinesLoading) {
+          <p class="feed-empty">Headlines are loading.</p>
+        } @else if (newsItems.length === 0) {
+          <p class="feed-empty">No live headlines are available right now.</p>
+        } @else {
+          <div class="news-list">
+            @for (item of newsItems; track item.href) {
+              <a class="news-item" [href]="item.href" target="_blank" rel="noopener noreferrer">
+                <span class="news-item__source">{{ item.source }}</span>
+                <span class="news-item__title">{{ item.title }}</span>
+              </a>
+            }
+          </div>
+        }
+      </article>
+    </section>
   </div>
 </section>
