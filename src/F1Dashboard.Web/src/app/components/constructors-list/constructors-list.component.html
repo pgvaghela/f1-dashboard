@@ -11,6 +11,7 @@
   }
 
   @if (!loading && !error) {
+    <div class="data-shell hud-panel liquid-glass" reveal>
     <table class="data-table">
       <thead>
         <tr>
@@ -20,12 +21,28 @@
       </thead>
       <tbody>
         @for (constructor of constructors; track constructor.id) {
-          <tr>
-            <td>{{ constructor.teamName }}</td>
+          <tr [style.--team-color]="teamColor(constructor.teamName)">
+            <td>
+              <span class="entity">
+                <span class="logo">
+                  @if (logo(constructor.teamName) && !failedImages.has(logo(constructor.teamName)!)) {
+                    <img class="logo__img" [src]="logo(constructor.teamName)"
+                         [alt]="constructor.teamName" loading="lazy"
+                         (error)="onImageError(logo(constructor.teamName))" />
+                  } @else {
+                    <span class="logo__badge" [style.background-color]="teamColor(constructor.teamName)">
+                      {{ teamAbbr(constructor.teamName) || '—' }}
+                    </span>
+                  }
+                </span>
+                <span class="entity__name">{{ constructor.teamName }}</span>
+              </span>
+            </td>
             <td>{{ constructor.nationality }}</td>
           </tr>
         }
       </tbody>
     </table>
+    </div>
   }
 </div>
