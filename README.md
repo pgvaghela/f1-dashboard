@@ -1,6 +1,6 @@
 # F1 Dashboard
 
-A full-stack Formula 1 analytics dashboard — browse drivers, constructors, and championship standings across the 2023–2026 seasons, plus a **machine-learning race-winner predictor**, fronted by an Apple-style landing page with a scroll-driven cinematic hero.
+A full-stack Formula 1 analytics dashboard — browse drivers, constructors, and championship standings across the 2023–2026 seasons, plus a **machine-learning race-winner predictor** and interactive **lap telemetry replay**, fronted by a cinematic scroll-scrubbed hero.
 
 ### ▶︎ Live demo: **[f1-dashboard-dusky-sigma.vercel.app](https://f1-dashboard-dusky-sigma.vercel.app)**
 
@@ -25,7 +25,7 @@ A full-stack Formula 1 analytics dashboard — browse drivers, constructors, and
 - **Database:** PostgreSQL, hosted on **Neon**.
 - **Machine learning:** an in-process [ML.NET](https://dotnet.microsoft.com/apps/machinelearning-ai/ml-dotnet) **FastTree** gradient-boosted classifier that predicts race winners — trained from the same Postgres data, no separate service to deploy.
 - **Data:** real F1 results pulled from the public [Jolpica/Ergast API](https://api.jolpi.ca/) via a built-in importer.
-- **Hero visual:** scroll-scrubbed real F1 track footage (Pexels, royalty-free) with a reduced-motion poster fallback. Re-download via `tools/fetch-hero-video.sh`.
+- **Hero visual:** scroll-scrubbed video (`src/F1Dashboard.Web/public/hero/hero.mp4`) with a reduced-motion poster fallback.
 
 ## Architecture
 
@@ -39,12 +39,13 @@ flowchart LR
 
 ## Features
 
-- Apple-style landing page with scroll-scrubbed real F1 track footage and a reduced-motion poster fallback.
+- Cinematic landing page with scroll-scrubbed hero video and reduced-motion fallback poster.
 - Drivers and constructors listings.
 - Driver **and** constructor championship standings with a season selector (2023–2026) and a Drivers/Constructors toggle.
 - Standings computed server-side from race results (points aggregated per driver/constructor).
 - **Race winner predictor (ML.NET):** ranks every driver's win probability for any Grand Prix and animates the projected podium as team-colored cars crossing the finish line. For past races it reveals a ✓/✗ verdict against the actual winner; **upcoming races are predicted too** with a separate, grid-free model over the current lineup.
-- One-command data import that pulls real, current F1 data from a public API.
+- **Lap telemetry tab:** season/race/driver/lap selection, map replay, speed trace, sector splits, and side-by-side lap compare.
+- One-command race-result import plus telemetry ingestion tools.
 
 ## API
 
@@ -61,9 +62,16 @@ Base URL (local dev): `http://localhost:5197`. Interactive docs (Scalar) at `/sc
 | GET | `/api/races/{id}/results` | Results for a race, with driver and constructor names, ordered by finish position |
 | GET | `/api/standings/drivers/{season}` | Driver standings for a season (`404` if no results) |
 | GET | `/api/standings/constructors/{season}` | Constructor standings for a season (`404` if no results) |
+| GET | `/api/headlines?limit={n}` | Latest F1 headlines used by the home page |
 | GET | `/api/predictions/races/{season}` | Races available to predict for a season (completed **and** upcoming) |
 | GET | `/api/predictions/race/{raceId}` | Ranked win probabilities for a race, with the actual result when known |
 | POST | `/api/predictions/retrain` | Rebuilds the model from current data (Development / `AllowImport` only) |
+| GET | `/api/lap-data/seasons` | Seasons with telemetry data |
+| GET | `/api/lap-data/races/{season}` | Races with telemetry for a season |
+| GET | `/api/lap-data/races/{raceId}/drivers` | Drivers with telemetry in a race |
+| GET | `/api/lap-data/races/{raceId}/drivers/{driverId}/laps` | Laps available for a driver |
+| GET | `/api/lap-data/laps/{lapId}` | Detailed telemetry for one lap |
+| POST | `/api/import/telemetry?seasons={csv}&force={bool}` | Start a background FastF1 telemetry ingest (Development / `AllowImport` only) |
 
 ## Race winner predictor
 
@@ -73,6 +81,15 @@ The **Predictor** tab estimates each driver's chance of winning a Grand Prix wit
 - **Features** (all computed strictly pre-race, so the model never sees the outcome it predicts): grid position, pole, driver & constructor recent form, season points pace, and circuit history.
 - **Upcoming races** have no qualifying yet, so a second model trained **without** the grid features scores the current driver lineup — a deliberately less confident, form-based projection.
 - **UI:** the projected podium animates as team-colored cars crossing the finish line; for past races each driver row reveals the real finishing position and a ✓/✗ verdict against the model's pick.
+
+## Lap telemetry
+
+The **Lap Data** tab replays recorded telemetry with an interactive track view.
+
+- Filter flow: season → race → driver → lap.
+- Track map replay with playback controls and hover tooltip data.
+- Speed trace and sector breakdowns.
+- Optional side-by-side compare between two laps/drivers.
 
 ## Running locally
 
@@ -90,6 +107,22 @@ The API creates its schema on first run. Load real data (defaults to seasons 202
 
 ```bash
 curl -X POST http://localhost:5197/api/import
+```
+
+To import telemetry data as well:
+
+```bash
+cd tools
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+python ingest_telemetry.py --season 2026 --round 1 --all-drivers
+```
+
+Or run a multi-season batch:
+
+```bash
+python ingest_all_telemetry.py --seasons 2024,2025,2026
 ```
 
 **2. Frontend:**
@@ -111,8 +144,9 @@ Full Neon → Render → Vercel runbook in **[DEPLOYMENT.md](DEPLOYMENT.md)**.
 ```
 f1-dashboard/
 ├── src/
-│   ├── F1Dashboard.Api/   # ASP.NET Core 9 API (controllers, EF entities, DTOs, ML.NET predictor, Jolpica importer, Dockerfile)
+│   ├── F1Dashboard.Api/   # ASP.NET Core 9 API (controllers, EF entities, DTOs, ML.NET predictor, Jolpica importer, telemetry APIs, Dockerfile)
 │   └── F1Dashboard.Web/   # Angular 19 SPA (components, services, environments)
+├── tools/                 # telemetry ingestion scripts (FastF1-based)
 ├── docs/                  # README screenshots
 ├── DEPLOYMENT.md          # hosting runbook
 └── README.md
