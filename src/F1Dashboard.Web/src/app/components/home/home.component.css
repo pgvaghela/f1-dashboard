@@ -219,10 +219,13 @@
 .hero-scroll-track {
   position: relative;
   z-index: 2;
+  /* dvh tracks the visible viewport on mobile (URL bar in/out). */
+  min-height: 260dvh;
   min-height: 260vh;
 }
 
 .hero-scroll-track--static {
+  min-height: 100dvh;
   min-height: 100vh;
 }
 
@@ -231,6 +234,7 @@
 }
 
 .hero-stage {
+  min-height: 100dvh;
   min-height: 100vh;
   display: flex;
   align-items: flex-end;

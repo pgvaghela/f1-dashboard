@@ -1,8 +1,9 @@
 import {
-  AfterViewInit,
+  afterNextRender,
   Component,
   ElementRef,
   HostListener,
+  OnDestroy,
   OnInit,
   ViewChild
 } from '@angular/core';
@@ -18,16 +19,24 @@ import { HeadlinesService } from '../../services/headlines.service';
   templateUrl: './home.component.html',
   styleUrl: './home.component.css'
 })
-export class HomeComponent implements AfterViewInit, OnInit {
+export class HomeComponent implements OnDestroy, OnInit {
   private ticking = false;
   private scrubRaf: number | null = null;
   private targetTime = 0;
+  private videoPrimed = false;
+  private videoPriming = false;
+  private removeTouchPrime?: () => void;
 
   @ViewChild('heroVideo') heroVideo?: ElementRef<HTMLVideoElement>;
 
   readonly reduceMotion =
     typeof window !== 'undefined' &&
     window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  /** Touch devices scrub on scroll directly — iOS throttles rAF currentTime easing. */
+  private readonly directScrub =
+    typeof window !== 'undefined' &&
+    window.matchMedia('(pointer: coarse)').matches;
 
   menuOpen = false;
   scrollProgress = 0;
@@ -49,7 +58,9 @@ export class HomeComponent implements AfterViewInit, OnInit {
   constructor(
     private readonly predictions: PredictionService,
     private readonly headlines: HeadlinesService
-  ) {}
+  ) {
+    afterNextRender(() => this.initHeroVideo());
+  }
 
   ngOnInit(): void {
     this.predictions.getRaces(2026).subscribe({
@@ -82,15 +93,11 @@ export class HomeComponent implements AfterViewInit, OnInit {
     }
   }
 
-  ngAfterViewInit(): void {
-    const video = this.heroVideo?.nativeElement;
-    if (video && !this.reduceMotion) {
-      video.addEventListener('loadedmetadata', () => {
-        this.syncTargetTime();
-        video.currentTime = this.targetTime;
-      });
-      this.syncTargetTime();
-      this.startScrubLoop();
+  ngOnDestroy(): void {
+    this.removeTouchPrime?.();
+    if (this.scrubRaf !== null) {
+      cancelAnimationFrame(this.scrubRaf);
+      this.scrubRaf = null;
     }
   }
 
@@ -100,11 +107,18 @@ export class HomeComponent implements AfterViewInit, OnInit {
       return;
     }
 
+    if (!this.videoPrimed) {
+      const video = this.heroVideo?.nativeElement;
+      if (video) {
+        void this.primeVideoForScrubbing(video);
+      }
+    }
+
     this.ticking = true;
     requestAnimationFrame(() => {
       this.updateScrollProgress();
       this.syncTargetTime();
-      this.startScrubLoop();
+      this.applyVideoTime();
       this.ticking = false;
     });
   }
@@ -131,6 +145,71 @@ export class HomeComponent implements AfterViewInit, OnInit {
     this.scrollProgress = Math.min(Math.max(window.scrollY / distance, 0), 1);
   }
 
+  private initHeroVideo(): void {
+    if (this.reduceMotion) {
+      return;
+    }
+
+    const video = this.heroVideo?.nativeElement;
+    if (!video) {
+      return;
+    }
+
+    video.muted = true;
+    video.playsInline = true;
+    video.setAttribute('playsinline', '');
+    video.setAttribute('webkit-playsinline', '');
+
+    const onReady = () => {
+      this.syncTargetTime();
+      this.applyVideoTime();
+      void this.primeVideoForScrubbing(video);
+    };
+
+    video.addEventListener('loadedmetadata', onReady, { once: true });
+    if (video.readyState >= 1) {
+      onReady();
+    }
+
+  }
+
+  private primeVideoForScrubbing(video: HTMLVideoElement): void {
+    if (this.videoPrimed || this.videoPriming) {
+      return;
+    }
+
+    this.videoPriming = true;
+
+    const markPrimed = () => {
+      this.videoPriming = false;
+      this.videoPrimed = true;
+      this.removeTouchPrime?.();
+      this.removeTouchPrime = undefined;
+      video.pause();
+      this.syncTargetTime();
+      this.applyVideoTime();
+    };
+
+    const attempt = video.play();
+    if (attempt === undefined) {
+      markPrimed();
+      return;
+    }
+
+    attempt.then(markPrimed).catch(() => {
+      this.videoPriming = false;
+      const onTouch = () => {
+        void video.play().then(markPrimed).catch(() => undefined);
+      };
+      document.addEventListener('touchstart', onTouch, { once: true, passive: true });
+      document.addEventListener('click', onTouch, { once: true });
+      this.removeTouchPrime = () => {
+        document.removeEventListener('touchstart', onTouch);
+        document.removeEventListener('click', onTouch);
+      };
+    });
+  }
+
   private syncTargetTime(): void {
     const video = this.heroVideo?.nativeElement;
     if (!video || !video.duration || Number.isNaN(video.duration)) {
@@ -138,6 +217,20 @@ export class HomeComponent implements AfterViewInit, OnInit {
     }
 
     this.targetTime = this.scrollProgress * video.duration;
+  }
+
+  private applyVideoTime(): void {
+    const video = this.heroVideo?.nativeElement;
+    if (!video || !video.duration || Number.isNaN(video.duration)) {
+      return;
+    }
+
+    if (this.directScrub) {
+      video.currentTime = this.targetTime;
+      return;
+    }
+
+    this.startScrubLoop();
   }
 
   private startScrubLoop(): void {
